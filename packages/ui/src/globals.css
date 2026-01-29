@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* Medical-themed color palette */
+  --color-primary: oklch(0.55 0.15 220);
+  --color-primary-foreground: oklch(0.98 0 0);
+
+  --color-secondary: oklch(0.65 0.08 170);
+  --color-secondary-foreground: oklch(0.15 0 0);
+
+  --color-accent: oklch(0.75 0.12 150);
+  --color-accent-foreground: oklch(0.15 0 0);
+
+  --color-destructive: oklch(0.55 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  --color-muted: oklch(0.95 0.01 220);
+  --color-muted-foreground: oklch(0.45 0.02 220);
+
+  --color-background: oklch(0.99 0 0);
+  --color-foreground: oklch(0.15 0.02 220);
+
+  --color-card: oklch(0.99 0 0);
+  --color-card-foreground: oklch(0.15 0.02 220);
+
+  --color-popover: oklch(0.99 0 0);
+  --color-popover-foreground: oklch(0.15 0.02 220);
+
+  --color-border: oklch(0.88 0.02 220);
+  --color-input: oklch(0.88 0.02 220);
+  --color-ring: oklch(0.55 0.15 220);
+
+  /* Status colors for medical context */
+  --color-success: oklch(0.55 0.15 145);
+  --color-warning: oklch(0.7 0.15 75);
+  --color-urgent: oklch(0.55 0.2 25);
+
+  /* Radius */
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.25rem;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-primary: oklch(0.7 0.12 220);
+    --color-primary-foreground: oklch(0.15 0 0);
+
+    --color-secondary: oklch(0.35 0.05 220);
+    --color-secondary-foreground: oklch(0.98 0 0);
+
+    --color-accent: oklch(0.4 0.08 170);
+    --color-accent-foreground: oklch(0.98 0 0);
+
+    --color-destructive: oklch(0.6 0.2 25);
+    --color-destructive-foreground: oklch(0.98 0 0);
+
+    --color-muted: oklch(0.2 0.02 220);
+    --color-muted-foreground: oklch(0.65 0.02 220);
+
+    --color-background: oklch(0.12 0.02 220);
+    --color-foreground: oklch(0.95 0 0);
+
+    --color-card: oklch(0.15 0.02 220);
+    --color-card-foreground: oklch(0.95 0 0);
+
+    --color-popover: oklch(0.15 0.02 220);
+    --color-popover-foreground: oklch(0.95 0 0);
+
+    --color-border: oklch(0.3 0.02 220);
+    --color-input: oklch(0.3 0.02 220);
+    --color-ring: oklch(0.7 0.12 220);
+  }
+}
+
+/* Base styles */
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}

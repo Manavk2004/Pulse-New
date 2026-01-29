@@ -1,12 +1,14 @@
 {
-  "name": "my-turborepo",
+  "name": "pulse-medical",
   "private": true,
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "check-types": "turbo run check-types",
+    "convex:dev": "cd packages/convex && npx convex dev",
+    "convex:deploy": "cd packages/convex && npx convex deploy"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
