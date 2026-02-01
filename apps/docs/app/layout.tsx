@@ -13,7 +13,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pulse Patient Portal",
+  title: "Pulse",
   description: "Your personal health communication hub",
 };
 

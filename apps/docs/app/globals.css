@@ -59,50 +59,6 @@
   --shadow-xl: 0 20px 25px -5px rgb(37 41 28 / 0.08), 0 8px 10px -6px rgb(37 41 28 / 0.04);
 }
 
-/* Dark mode - Charcoal Brown #25291C based */
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-primary: oklch(0.7 0.03 120);
-    --color-primary-foreground: oklch(0.15 0.02 90);
-
-    --color-secondary: oklch(0.75 0.06 95);
-    --color-secondary-foreground: oklch(0.15 0.02 90);
-
-    --color-accent: oklch(0.6 0.03 120);
-    --color-accent-foreground: oklch(0.95 0 0);
-
-    --color-destructive: oklch(0.6 0.18 25);
-    --color-destructive-foreground: oklch(0.99 0 0);
-
-    /* Muted: Dark olive */
-    --color-muted: oklch(0.25 0.02 100);
-    --color-muted-foreground: oklch(0.65 0.02 115);
-
-    /* Background: Charcoal Brown #25291C */
-    --color-background: oklch(0.18 0.02 100);
-    --color-foreground: oklch(0.9 0.01 115);
-
-    /* Card: Slightly lighter than background */
-    --color-card: oklch(0.22 0.02 100);
-    --color-card-foreground: oklch(0.9 0.01 115);
-
-    --color-popover: oklch(0.22 0.02 100);
-    --color-popover-foreground: oklch(0.9 0.01 115);
-
-    --color-border: oklch(0.32 0.02 100);
-    --color-input: oklch(0.32 0.02 100);
-    --color-ring: oklch(0.7 0.03 120);
-
-    --color-success: oklch(0.55 0.1 145);
-    --color-warning: oklch(0.7 0.1 85);
-    --color-urgent: oklch(0.6 0.18 25);
-
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.25), 0 2px 4px -2px rgb(0 0 0 / 0.15);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.15);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.2);
-  }
-}
 
 /* Base styles */
 * {
@@ -207,15 +163,6 @@ body {
   background-color: rgb(51 153 137 / 0.2);
 }
 
-@media (prefers-color-scheme: dark) {
-  .gradient-primary {
-    background: linear-gradient(135deg, #2a7d71 0%, #5fc9b8 100%);
-  }
-
-  .gradient-card {
-    background: linear-gradient(180deg, var(--color-card) 0%, oklch(0.2 0.02 100) 100%);
-  }
-}
 
 /* Glass effect */
 .glass {
@@ -224,8 +171,11 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
-@media (prefers-color-scheme: dark) {
-  .glass {
-    background: oklch(0.22 0.02 100 / 0.85);
-  }
+/* Faint diamond grid background for portal pages */
+.portal-grid {
+  background-color: #f8fafc;
+  background-image:
+    repeating-linear-gradient(45deg, rgb(148 163 184 / 0.08) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(-45deg, rgb(148 163 184 / 0.08) 0 1px, transparent 1px 24px);
+  background-size: 24px 24px;
 }

@@ -1,232 +1,281 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
-import { Button } from "@repo/ui/button";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  HeartPulse,
+  Activity,
+  Calendar,
+  Heart,
   MessageSquare,
-  FileText,
-  LayoutDashboard,
-  Settings,
-  Bell,
+  User,
   Search,
-  Menu,
-  X,
-  Sparkles,
+  Bell,
 } from "lucide-react";
-import { useState } from "react";
 
-const navigation = [
-  { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
-  { name: "AI Assistant", href: "/portal/chat", icon: Sparkles },
-  { name: "Documents", href: "/portal/documents", icon: FileText },
-  { name: "Settings", href: "/portal/settings", icon: Settings },
-];
+function DashboardSidebar({
+  activeTab,
+  onTabChange,
+  onNavigate,
+  className,
+  showBrand = true,
+}: {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  onNavigate?: () => void;
+  className?: string;
+  showBrand?: boolean;
+}) {
+  const tabs = ["Overview", "Appointments", "Health Records", "Messages", "Settings"];
+
+  return (
+    <aside
+      className={
+        className ?? "w-64 bg-white border-r border-slate-200 hidden xl:flex flex-col relative z-10"
+      }
+    >
+      {showBrand && (
+        <div className="p-6">
+          <div className="flex items-center gap-2 text-blue-600">
+            <Activity size={28} />
+            <span className="text-xl font-bold tracking-tight text-slate-800">
+              HealthConnect
+            </span>
+          </div>
+        </div>
+      )}
+
+      <nav className="flex-1 px-4 space-y-1">
+        {tabs.map((item) => (
+          <button
+            key={item}
+            onClick={() => {
+              onTabChange(item);
+              onNavigate?.();
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+              activeTab === item
+                ? "bg-blue-50 text-blue-600 font-semibold"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+            }`}
+          >
+            {item === "Overview" && <Activity size={20} />}
+            {item === "Appointments" && <Calendar size={20} />}
+            {item === "Health Records" && <Heart size={20} />}
+            {item === "Messages" && <MessageSquare size={20} />}
+            {item === "Settings" && <User size={20} />}
+            {item}
+          </button>
+        ))}
+      </nav>
+
+      <div className="p-4 m-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl text-white">
+        <h4 className="font-semibold text-sm mb-1">Upgrade to Premium</h4>
+        <p className="text-xs text-blue-100 mb-3">
+          Get detailed AI-driven health insights daily.
+        </p>
+        <button className="w-full bg-white/20 hover:bg-white/30 py-2 rounded-lg text-xs font-medium transition-colors backdrop-blur-sm">
+          Learn More
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function Header({
+  searchText,
+  onSearchChange,
+  isMobileNavOpen,
+  onMobileNavToggle,
+  mobileNavButtonRef,
+}: {
+  searchText: string;
+  onSearchChange: (value: string) => void;
+  isMobileNavOpen: boolean;
+  onMobileNavToggle: () => void;
+  mobileNavButtonRef: React.RefObject<HTMLButtonElement>;
+}) {
+  return (
+    <header className="sticky top-0 z-10 bg-[#f8fafc]/80 backdrop-blur-md px-8 py-4 flex items-center justify-between border-b border-slate-200">
+      <button
+        ref={mobileNavButtonRef}
+        type="button"
+        aria-label="Toggle navigation menu"
+        aria-expanded={isMobileNavOpen}
+        aria-controls="portal-mobile-nav"
+        onClick={onMobileNavToggle}
+        className="xl:hidden mr-4 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        <span className="sr-only">Open navigation</span>
+        <div className="flex flex-col gap-1.5">
+          <span className="h-0.5 w-5 rounded-full bg-slate-700"></span>
+          <span className="h-0.5 w-5 rounded-full bg-slate-700"></span>
+          <span className="h-0.5 w-5 rounded-full bg-slate-700"></span>
+        </div>
+      </button>
+      <div className="flex-1 max-w-md relative hidden sm:block">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          type="text"
+          value={searchText ?? ""}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search health records, doctors..."
+          className="w-full bg-white border border-slate-200 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+        />
+      </div>
+
+      <div className="flex items-center gap-4">
+        <button className="relative p-2 text-slate-500 hover:bg-white rounded-full transition-colors">
+          <Bell size={20} />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#f8fafc]"></span>
+        </button>
+        <div className="h-8 w-px bg-slate-200 mx-2"></div>
+        <div className="flex items-center gap-3 cursor-pointer group">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-semibold text-slate-800 leading-none">Alex Johnson</p>
+            <p className="text-xs text-slate-500 mt-1">Patient #82104</p>
+          </div>
+          <img
+            src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"
+            alt="Profile"
+            className="w-10 h-10 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-all"
+          />
+        </div>
+      </div>
+    </header>
+  );
+}
 
 export default function PortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dashboardTab = searchParams.get("tab") ?? "Overview";
+  const [searchText, setSearchText] = useState("");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileNavRef = useRef<HTMLDivElement>(null);
+  const handleDashboardTabChange = (tab: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`/portal?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (!isMobileNavOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex="0"]';
+    const focusableElements = mobileNavRef.current?.querySelectorAll<HTMLElement>(
+      focusableSelector
+    );
+    const firstFocusable = focusableElements?.[0];
+    const lastFocusable = focusableElements?.[focusableElements.length - 1];
+    firstFocusable?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileNavOpen(false);
+        mobileNavButtonRef.current?.focus();
+        return;
+      }
+
+      if (event.key !== "Tab" || !firstFocusable || !lastFocusable) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstFocusable) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && document.activeElement === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMobileNavOpen]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border/50 bg-card/50 px-6 pb-4">
-          {/* Logo */}
-          <div className="flex h-16 shrink-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary shadow-lg">
-              <HeartPulse className="h-6 w-6 text-white" />
+    <div className="min-h-screen bg-[#f8fafc] flex relative">
+      {/* Grid background pattern */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23cbd5e1' stroke-width='0.5'%3E%3Cpath d='M0 0l60 60M60 0L0 60M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          opacity: 0.4,
+        }}
+      />
+      <div
+        className={`fixed inset-0 z-30 xl:hidden transition-opacity duration-300 ${
+          isMobileNavOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <div
+          className="absolute inset-0 bg-slate-900/40"
+          onClick={() => setIsMobileNavOpen(false)}
+        ></div>
+        <div
+          id="portal-mobile-nav"
+          ref={mobileNavRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
+          className={`relative h-full w-72 max-w-[85vw] bg-white shadow-2xl transition-transform duration-300 ${
+            isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+            <div className="flex items-center gap-2 text-blue-600">
+              <Activity size={24} />
+              <span className="text-lg font-semibold text-slate-800">HealthConnect</span>
             </div>
-            <div>
-              <span className="text-xl font-bold tracking-tight">Pulse</span>
-              <p className="text-xs text-muted-foreground">Patient Portal</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="rounded-full p-2 text-slate-500 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <span className="sr-only">Close navigation</span>
+              ✕
+            </button>
           </div>
-
-          {/* Navigation */}
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              <li>
-                <ul role="list" className="-mx-2 space-y-1">
-                  {navigation.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className={`group flex gap-x-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                            isActive
-                              ? "bg-primary text-primary-foreground shadow-md"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          }`}
-                        >
-                          <item.icon
-                            className={`h-5 w-5 shrink-0 transition-transform group-hover:scale-110 ${
-                              isActive ? "text-primary-foreground" : ""
-                            }`}
-                          />
-                          {item.name}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-
-              {/* Quick Actions */}
-              <li className="mt-auto">
-                <div className="rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 p-4 border border-primary/20">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">Need Help?</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Our AI assistant is available 24/7 to answer your health questions.
-                  </p>
-                  <Link href="/portal/chat">
-                    <Button size="sm" className="w-full rounded-xl">
-                      Start Conversation
-                    </Button>
-                  </Link>
-                </div>
-              </li>
-            </ul>
-          </nav>
-        </div>
-      </aside>
-
-      {/* Mobile Header */}
-      <div className="sticky top-0 z-40 lg:hidden">
-        <div className="flex h-16 items-center gap-x-4 border-b border-border/50 bg-card/80 backdrop-blur-xl px-4 shadow-sm">
-          <button
-            type="button"
-            className="-m-2.5 p-2.5 text-foreground lg:hidden"
-            onClick={() => setMobileMenuOpen(true)}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-
-          <div className="flex flex-1 items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-              <HeartPulse className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-semibold">Pulse</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <UserButton
-              afterSignOutUrl="/sign-in"
-              appearance={{
-                elements: {
-                  avatarBox: "h-9 w-9",
-                },
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setMobileMenuOpen(false)}
+          <DashboardSidebar
+            activeTab={dashboardTab}
+            onTabChange={handleDashboardTabChange}
+            onNavigate={() => setIsMobileNavOpen(false)}
+            className="flex h-full flex-col"
+            showBrand={false}
           />
-          <div className="fixed inset-y-0 left-0 w-full max-w-xs bg-card p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-                  <HeartPulse className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-xl font-bold">Pulse</span>
-              </div>
-              <button
-                type="button"
-                className="-m-2.5 p-2.5"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <nav className="flex flex-col gap-2">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-all ${
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-      )}
-
-      {/* Desktop Header */}
-      <div className="hidden lg:fixed lg:left-72 lg:right-0 lg:top-0 lg:z-40">
-        <div className="flex h-16 items-center gap-x-4 border-b border-border/50 bg-card/80 backdrop-blur-xl px-8">
-          {/* Search */}
-          <div className="flex flex-1 items-center gap-x-4">
-            <div className="relative w-full max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder="Search documents, messages..."
-                className="h-10 w-full rounded-xl border border-border bg-muted/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-full relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
-            </Button>
-            <div className="h-6 w-px bg-border" />
-            <UserButton
-              afterSignOutUrl="/sign-in"
-              appearance={{
-                elements: {
-                  avatarBox: "h-9 w-9 rounded-xl",
-                },
-              }}
-            />
-          </div>
         </div>
       </div>
-
-      {/* Main Content */}
-      <main className="lg:pl-72">
-        <div className="lg:pt-16">
-          <div className="px-4 py-6 sm:px-6 lg:px-8">
-            {children}
-          </div>
-        </div>
-      </main>
+      <DashboardSidebar
+        activeTab={dashboardTab}
+        onTabChange={handleDashboardTabChange}
+      />
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        <Header
+          searchText={searchText}
+          onSearchChange={setSearchText}
+          isMobileNavOpen={isMobileNavOpen}
+          onMobileNavToggle={() => setIsMobileNavOpen((prev) => !prev)}
+          mobileNavButtonRef={mobileNavButtonRef}
+        />
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

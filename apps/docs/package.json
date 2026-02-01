@@ -21,11 +21,13 @@
     "@trpc/react-query": "^11.1.0",
     "@trpc/server": "^11.1.0",
     "convex": "^1.21.0",
+    "framer-motion": "^12.29.2",
     "lucide-react": "^0.485.0",
     "next": "16.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.56.1",
+    "recharts": "^3.7.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

@@ -13,7 +13,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pulse - Medical Communication Platform",
+  title: "Pulse",
   description: "HIPAA-compliant patient-physician communication with AI-assisted triage",
 };
 
