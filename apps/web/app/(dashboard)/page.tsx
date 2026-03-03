@@ -27,15 +27,32 @@ import gsap from "gsap";
 /*  Mock Data                                                          */
 /* ------------------------------------------------------------------ */
 
-const consultationData = [
-  { day: "Mon", consultations: 12, followUps: 4 },
-  { day: "Tue", consultations: 18, followUps: 7 },
-  { day: "Wed", consultations: 15, followUps: 5 },
-  { day: "Thu", consultations: 22, followUps: 9 },
-  { day: "Fri", consultations: 20, followUps: 8 },
-  { day: "Sat", consultations: 8, followUps: 3 },
-  { day: "Sun", consultations: 5, followUps: 2 },
-];
+const consultationDataByRange: Record<string, { day: string; consultations: number; followUps: number }[]> = {
+  "This Week": [
+    { day: "Mon", consultations: 12, followUps: 4 },
+    { day: "Tue", consultations: 18, followUps: 7 },
+    { day: "Wed", consultations: 15, followUps: 5 },
+    { day: "Thu", consultations: 22, followUps: 9 },
+    { day: "Fri", consultations: 20, followUps: 8 },
+    { day: "Sat", consultations: 8, followUps: 3 },
+    { day: "Sun", consultations: 5, followUps: 2 },
+  ],
+  "Last Week": [
+    { day: "Mon", consultations: 10, followUps: 3 },
+    { day: "Tue", consultations: 14, followUps: 5 },
+    { day: "Wed", consultations: 19, followUps: 8 },
+    { day: "Thu", consultations: 16, followUps: 6 },
+    { day: "Fri", consultations: 21, followUps: 10 },
+    { day: "Sat", consultations: 7, followUps: 2 },
+    { day: "Sun", consultations: 4, followUps: 1 },
+  ],
+  "This Month": [
+    { day: "Wk 1", consultations: 68, followUps: 22 },
+    { day: "Wk 2", consultations: 75, followUps: 28 },
+    { day: "Wk 3", consultations: 82, followUps: 31 },
+    { day: "Wk 4", consultations: 71, followUps: 25 },
+  ],
+};
 
 const upcomingAppointments = [
   {
@@ -298,7 +315,7 @@ export default function DashboardPage() {
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={consultationData}>
+              <AreaChart data={consultationDataByRange[timeRange] ?? consultationDataByRange["This Week"]}>
                 <defs>
                   <linearGradient
                     id="colorConsultations"

@@ -15,12 +15,12 @@ import {
 } from "lucide-react";
 
 const tabs = [
-  { label: "Overview", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "My Patients", icon: Users, href: "/dashboard/patients" },
-  { label: "Appointments", icon: Calendar, href: "/dashboard/appointments" },
-  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
-  { label: "Escalations", icon: AlertTriangle, href: "/dashboard/escalations" },
-  { label: "Settings", icon: Settings, href: "/dashboard/settings" },
+  { label: "Overview", icon: LayoutDashboard, href: "/" },
+  { label: "My Patients", icon: Users, href: "/patients" },
+  { label: "Appointments", icon: Calendar, href: "/appointments" },
+  { label: "Messages", icon: MessageSquare, href: "/messages" },
+  { label: "Escalations", icon: AlertTriangle, href: "/escalations" },
+  { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
 function DashboardSidebar({
