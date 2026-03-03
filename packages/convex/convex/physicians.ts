@@ -28,6 +28,7 @@ export const create = mutation({
     lastName: v.string(),
     specialty: v.string(),
     licenseNumber: v.string(),
+    email: v.string(),
     organizationId: v.optional(v.id("organizations")),
   },
   handler: async (ctx, args) => {
@@ -47,6 +48,7 @@ export const create = mutation({
       lastName: args.lastName,
       specialty: args.specialty,
       licenseNumber: args.licenseNumber,
+      email: args.email,
       organizationId: args.organizationId,
     });
   },

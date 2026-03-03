@@ -15,6 +15,7 @@ import type * as auditLog from "../auditLog.js";
 import type * as chats from "../chats.js";
 import type * as documents from "../documents.js";
 import type * as escalations from "../escalations.js";
+import type * as organizations from "../organizations.js";
 import type * as patients from "../patients.js";
 import type * as physicians from "../physicians.js";
 import type * as user from "../user.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   chats: typeof chats;
   documents: typeof documents;
   escalations: typeof escalations;
+  organizations: typeof organizations;
   patients: typeof patients;
   physicians: typeof physicians;
   user: typeof user;

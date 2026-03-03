@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@repo/convex";
 import {
   Activity,
   LayoutDashboard,
@@ -12,6 +15,7 @@ import {
   Settings,
   Search,
   Bell,
+  Loader2,
 } from "lucide-react";
 
 const tabs = [
@@ -166,6 +170,18 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+
+  // Look up Convex user and physician profile for onboarding guard
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    clerkLoaded && clerkUser ? { clerkId: clerkUser.id } : "skip"
+  );
+  const physicianProfile = useQuery(
+    api.physicians.getByUserId,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
+
   const [searchText, setSearchText] = useState("");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
@@ -180,6 +196,16 @@ export default function DashboardLayout({
       router.push(tab.href);
     }
   };
+
+  // Redirect to onboarding if physician user has no physician profile
+  useEffect(() => {
+    if (convexUser && convexUser.role === "physician" && physicianProfile === null) {
+      router.replace("/onboarding");
+    }
+    if (clerkLoaded && clerkUser && convexUser === null) {
+      router.replace("/onboarding");
+    }
+  }, [clerkLoaded, clerkUser, convexUser, physicianProfile, router]);
 
   useEffect(() => {
     if (!isMobileNavOpen) {
@@ -224,6 +250,18 @@ export default function DashboardLayout({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isMobileNavOpen]);
+
+  // Show loading while checking profile (only block for physician role or unknown users)
+  if (
+    !clerkLoaded ||
+    (clerkUser && (convexUser === undefined || (convexUser && convexUser.role === "physician" && physicianProfile === undefined)))
+  ) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex relative">

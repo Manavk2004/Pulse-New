@@ -51,6 +51,7 @@ export default defineSchema({
     lastName: v.string(),
     specialty: v.string(),
     licenseNumber: v.string(),
+    email: v.optional(v.string()),
     organizationId: v.optional(v.id("organizations")),
   })
     .index("by_userId", ["userId"])
@@ -61,6 +62,7 @@ export default defineSchema({
     name: v.string(),
     address: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
+    registrationKey: v.string(),
     createdAt: v.number(),
   }),
 

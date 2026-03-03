@@ -1,6 +1,10 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
+import { useQuery } from 'convex/react';
+import { api } from '@repo/convex';
+import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock, Loader2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -79,6 +83,19 @@ const MetricCard = ({
 );
 
 export default function PortalPage() {
+  const router = useRouter();
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+
+  // Check if user has a patient profile
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    clerkLoaded && clerkUser ? { clerkId: clerkUser.id } : "skip"
+  );
+  const patientProfile = useQuery(
+    api.patients.getByUserId,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
+
   const [chatOpen, setChatOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
   const [messages, setMessages] = useState([{
@@ -89,6 +106,17 @@ export default function PortalPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
   const aiReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Redirect to onboarding if no patient profile or no Convex user record yet
+  useEffect(() => {
+    if (convexUser && patientProfile === null) {
+      router.replace("/onboarding");
+    }
+    // If Clerk user exists but no Convex user record (webhook hasn't fired), redirect to onboarding
+    if (clerkUser && convexUser === null) {
+      router.replace("/onboarding");
+    }
+  }, [clerkUser, convexUser, patientProfile, router]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -125,6 +153,15 @@ export default function PortalPage() {
   const handleTimeRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setTimeRange(e.target.value);
   };
+
+  // Show loading while checking profile
+  if (!clerkLoaded || (clerkUser && (convexUser === undefined || (convexUser && patientProfile === undefined)))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 text-slate-900">
