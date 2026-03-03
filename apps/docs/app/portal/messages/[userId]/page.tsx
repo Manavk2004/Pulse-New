@@ -66,9 +66,11 @@ function MessagesPageInner() {
     [router, userId]
   );
   const [isSending, setIsSending] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const deleteDialogRef = useRef<HTMLDivElement>(null);
+  const messageCountAtSend = useRef(0);
 
   // Convex queries and mutations — skip if not authorized
   const threadsResult = useQuery(
@@ -92,10 +94,16 @@ function MessagesPageInner() {
   const deleteThreadMutation = useMutation(api.agent.threads.deleteThread);
   const sendMessageAction = useAction(api.agent.threads.sendMessage);
 
+  // Show the optimistic bubble only until the real message syncs from the DB.
+  // Once messages.length increases beyond what it was at send time, the real
+  // message has arrived and we hide the optimistic duplicate.
+  const showPendingMessage =
+    pendingUserMessage && messages.length <= messageCountAtSend.current;
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, showPendingMessage]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -174,6 +182,8 @@ function MessagesPageInner() {
 
     setInput("");
     setError(null);
+    messageCountAtSend.current = messages.length;
+    setPendingUserMessage(text);
     setIsSending(true);
     try {
       await sendMessageAction({
@@ -184,6 +194,7 @@ function MessagesPageInner() {
     } catch {
       setError("Failed to send message. Please try again.");
     } finally {
+      setPendingUserMessage(null);
       setIsSending(false);
     }
   };
@@ -436,6 +447,7 @@ function MessagesPageInner() {
                             .map((c) => c.text)
                             .join("")
                         : "";
+                  if (!textContent) return null;
                   return (
                     <div
                       key={`${msg.order}-${msg.stepOrder}`}
@@ -468,6 +480,20 @@ function MessagesPageInner() {
                     </div>
                   );
                 })}
+
+              {/* Optimistic user message (shown instantly before DB sync) */}
+              {showPendingMessage && (
+                <div className="flex gap-3 flex-row-reverse">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600">
+                    <User className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="max-w-[75%] rounded-2xl px-4 py-2.5 bg-blue-600 text-white rounded-tr-md">
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {pendingUserMessage}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Typing indicator */}
               {isSending && (

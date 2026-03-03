@@ -212,9 +212,12 @@ function PortalLayoutInner({
   const { user } = useUser();
   const { signOut } = useClerk();
   const isMessagesRoute = pathname.startsWith("/portal/messages");
+  const isDocumentsRoute = pathname.startsWith("/portal/documents");
   const dashboardTab = isMessagesRoute
     ? "Messages"
-    : (searchParams.get("tab") ?? "Overview");
+    : isDocumentsRoute
+      ? "Health Records"
+      : (searchParams.get("tab") ?? "Overview");
   const [searchText, setSearchText] = useState("");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
@@ -223,6 +226,10 @@ function PortalLayoutInner({
     if (tab === "Messages") {
       if (!user?.id) return;
       router.push(`/portal/messages/${user.id}`);
+      return;
+    }
+    if (tab === "Health Records") {
+      router.push("/portal/documents");
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
