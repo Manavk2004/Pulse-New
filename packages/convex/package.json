@@ -28,7 +28,8 @@
     "@convex-dev/agent": "^0.3.2",
     "ai": "^5.0.82",
     "convex": "^1.31.6",
-    "convex-helpers": "^0.1.114"
+    "convex-helpers": "^0.1.114",
+    "openai": "^4.92.1"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
