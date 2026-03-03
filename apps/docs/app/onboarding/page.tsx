@@ -63,10 +63,17 @@ export default function OnboardingPage() {
   // Loading state
   if (!clerkLoaded || (clerkUser && convexUser === undefined) || existingPatient) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] relative">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23cbd5e1' stroke-width='0.5'%3E%3Cpath d='M0 0l60 60M60 0L0 60M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            opacity: 0.4,
+          }}
+        />
+        <div className="relative z-10 bg-white rounded-2xl shadow-lg border border-slate-200 px-8 py-6 flex items-center gap-4">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <span className="text-sm font-medium text-slate-700">Loading...</span>
         </div>
       </div>
     );
@@ -138,7 +145,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-primary mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 mb-4">
             <Heart className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-foreground">Welcome to Pulse</h1>
@@ -148,7 +155,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-card rounded-2xl shadow-lg border border-border p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-slate-100 rounded-2xl shadow-lg border border-slate-200 p-8 space-y-6">
           {/* Name Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -162,7 +169,7 @@ export default function OnboardingPage() {
                 maxLength={100}
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="John"
               />
             </div>
@@ -177,7 +184,7 @@ export default function OnboardingPage() {
                 maxLength={100}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Doe"
               />
             </div>
@@ -194,7 +201,7 @@ export default function OnboardingPage() {
               required
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -208,7 +215,7 @@ export default function OnboardingPage() {
               type="tel"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="(555) 123-4567"
             />
           </div>
@@ -227,7 +234,7 @@ export default function OnboardingPage() {
                 setSelectedOrgId(e.target.value);
                 setSelectedPhysicianId("");
               }}
-              className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a hospital...</option>
               {organizations?.map((org) => (
@@ -250,7 +257,7 @@ export default function OnboardingPage() {
               value={selectedPhysicianId}
               disabled={!selectedOrgId}
               onChange={(e) => setSelectedPhysicianId(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">
                 {!selectedOrgId ? "Select a hospital first..." : "Select a physician..."}
@@ -274,7 +281,7 @@ export default function OnboardingPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 px-6 rounded-xl font-semibold text-white gradient-primary hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 px-6 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>

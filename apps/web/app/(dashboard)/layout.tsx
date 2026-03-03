@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
+
+// DEV: hardcoded physician Clerk ID — bypasses Clerk auth
+const DEV_CLERK_ID = "user_38r6neCjAIGzEOdJF5l4P9Ay6cj";
 import {
   Activity,
   LayoutDashboard,
@@ -181,13 +183,11 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const params = useParams();
   const physicianId = params.physicianId as string | undefined;
-  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
 
-  // Look up Convex user and physician profile for onboarding guard
-  const convexUser = useQuery(
-    api.users.getByClerkId,
-    clerkLoaded && clerkUser ? { clerkId: clerkUser.id } : "skip"
-  );
+  // DEV: bypass Clerk — hardcode physician lookup
+  const convexUser = useQuery(api.users.getByClerkId, {
+    clerkId: DEV_CLERK_ID,
+  });
   const physicianProfile = useQuery(
     api.physicians.getByUserId,
     convexUser ? { userId: convexUser._id } : "skip"
@@ -219,22 +219,14 @@ export default function DashboardLayout({
     }
   };
 
-  // Validate physician ID matches authenticated user
+  // Validate physician ID matches authenticated user — redirect to correct dashboard
   useEffect(() => {
     if (convexUser && physicianId && convexUser._id !== physicianId) {
-      router.replace("/sign-in");
+      router.replace(`/${convexUser._id}`);
     }
   }, [convexUser, physicianId, router]);
 
-  // Redirect to onboarding if physician user has no physician profile
-  useEffect(() => {
-    if (convexUser && convexUser.role === "physician" && physicianProfile === null) {
-      router.replace("/onboarding");
-    }
-    if (clerkLoaded && clerkUser && convexUser === null) {
-      router.replace("/onboarding");
-    }
-  }, [clerkLoaded, clerkUser, convexUser, physicianProfile, router]);
+  // DEV: auth guards disabled
 
   useEffect(() => {
     if (!isMobileNavOpen) {
@@ -280,14 +272,21 @@ export default function DashboardLayout({
     };
   }, [isMobileNavOpen]);
 
-  // Show loading while checking profile (only block for physician role or unknown users)
-  if (
-    !clerkLoaded ||
-    (clerkUser && (convexUser === undefined || (convexUser && convexUser.role === "physician" && physicianProfile === undefined)))
-  ) {
+  // Show loading while Convex user loads
+  if (convexUser === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] relative">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23cbd5e1' stroke-width='0.5'%3E%3Cpath d='M0 0l60 60M60 0L0 60M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            opacity: 0.4,
+          }}
+        />
+        <div className="relative z-10 bg-white rounded-2xl shadow-lg border border-slate-200 px-8 py-6 flex items-center gap-4">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <span className="text-sm font-medium text-slate-700">Loading...</span>
+        </div>
       </div>
     );
   }

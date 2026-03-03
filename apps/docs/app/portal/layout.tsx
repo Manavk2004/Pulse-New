@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useClerk } from "@clerk/nextjs";
 import {
   Activity,
   Calendar,
@@ -11,6 +11,9 @@ import {
   User,
   Search,
   Bell,
+  LogOut,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
 
 function DashboardSidebar({
@@ -90,6 +93,7 @@ function Header({
   mobileNavButtonRef,
   userName,
   userImageUrl,
+  onSignOut,
 }: {
   searchText: string;
   onSearchChange: (value: string) => void;
@@ -98,7 +102,21 @@ function Header({
   mobileNavButtonRef: React.RefObject<HTMLButtonElement | null>;
   userName: string;
   userImageUrl?: string;
+  onSignOut: () => void;
 }) {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <header className="sticky top-0 z-10 bg-[#f8fafc]/80 backdrop-blur-md px-8 py-4 flex items-center justify-between border-b border-slate-200">
       <button
@@ -134,20 +152,47 @@ function Header({
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#f8fafc]"></span>
         </button>
         <div className="h-8 w-px bg-slate-200 mx-2"></div>
-        <div className="flex items-center gap-3 cursor-pointer group">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-slate-800 leading-none">{userName}</p>
-            <p className="text-xs text-slate-500 mt-1">Patient Portal</p>
-          </div>
-          {userImageUrl ? (
-            <img
-              src={userImageUrl}
-              alt="Profile"
-              className="w-10 h-10 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-all"
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setProfileOpen((prev) => !prev)}
+            className="flex items-center gap-3 cursor-pointer group"
+            aria-haspopup="true"
+            aria-expanded={profileOpen}
+            aria-label="Open profile menu"
+          >
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-semibold text-slate-800 leading-none">{userName}</p>
+              <p className="text-xs text-slate-500 mt-1">Patient Portal</p>
+            </div>
+            {userImageUrl ? (
+              <img
+                src={userImageUrl}
+                alt="Profile"
+                className="w-10 h-10 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-all"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-blue-100 flex items-center justify-center group-hover:border-blue-200 transition-all">
+                <User size={20} className="text-blue-600" />
+              </div>
+            )}
+            <ChevronDown
+              size={16}
+              className={`text-slate-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
             />
-          ) : (
-            <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-blue-100 flex items-center justify-center group-hover:border-blue-200 transition-all">
-              <User size={20} className="text-blue-600" />
+          </button>
+
+          {profileOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50">
+              <button
+                onClick={() => {
+                  setProfileOpen(false);
+                  onSignOut();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <LogOut size={16} className="text-slate-400" />
+                Log out
+              </button>
             </div>
           )}
         </div>
@@ -165,6 +210,7 @@ function PortalLayoutInner({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { user } = useUser();
+  const { signOut } = useClerk();
   const isMessagesRoute = pathname.startsWith("/portal/messages");
   const dashboardTab = isMessagesRoute
     ? "Messages"
@@ -294,10 +340,29 @@ function PortalLayoutInner({
           mobileNavButtonRef={mobileNavButtonRef}
           userName={user?.fullName ?? user?.firstName ?? "Patient"}
           userImageUrl={user?.imageUrl}
+          onSignOut={() => signOut().then(() => router.push("/sign-in"))}
         />
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
+      </div>
+    </div>
+  );
+}
+
+function PortalLoading() {
+  return (
+    <div className="min-h-screen bg-[#f8fafc] relative flex items-center justify-center">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23cbd5e1' stroke-width='0.5'%3E%3Cpath d='M0 0l60 60M60 0L0 60M30 0v60M0 30h60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          opacity: 0.4,
+        }}
+      />
+      <div className="relative z-10 bg-white rounded-2xl shadow-lg border border-slate-200 px-8 py-6 flex items-center gap-4">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+        <span className="text-sm font-medium text-slate-700">Loading...</span>
       </div>
     </div>
   );
@@ -309,7 +374,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PortalLoading />}>
       <PortalLayoutInner>{children}</PortalLayoutInner>
     </Suspense>
   );

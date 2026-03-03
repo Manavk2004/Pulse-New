@@ -48,6 +48,8 @@ export const create = mutation({
       dateOfBirth: args.dateOfBirth,
       phoneNumber: args.phoneNumber,
       organizationId: args.organizationId,
+      connected: false,
+      showPatient: true,
       consentStatus: "pending",
     });
   },
@@ -126,12 +128,47 @@ export const getByPhysician = query({
       )
       .collect();
 
+    const visible = patients.filter((p) => p.showPatient !== false);
+
     return Promise.all(
-      patients.map(async (p) => {
+      visible.map(async (p) => {
         const user = await ctx.db.get(p.userId);
         return { ...p, email: user?.email ?? "" };
       })
     );
+  },
+});
+
+// Hide patient from physician view (soft delete)
+export const hidePatient = mutation({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, args) => {
+    const patient = await ctx.db.get(args.patientId);
+    if (!patient) {
+      throw new Error("Patient not found");
+    }
+
+    // Authorization: verify caller is the assigned physician
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      const callerUser = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) =>
+          q.eq("clerkId", identity.subject)
+        )
+        .unique();
+      if (
+        !callerUser ||
+        (callerUser.role !== "admin" &&
+          callerUser._id !== patient.assignedPhysicianId)
+      ) {
+        throw new Error("Unauthorized: only the assigned physician or an admin can hide this patient");
+      }
+    }
+    // TODO: Once ConvexProviderWithClerk is configured on the web app,
+    // throw an error when identity is null instead of allowing unauthenticated access.
+
+    await ctx.db.patch(args.patientId, { showPatient: false });
   },
 });
 

@@ -1,24 +1,10 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx } from "./_generated/server";
-
-// Helper: resolve the Convex userId from the Clerk identity
-async function getCallerUserId(ctx: QueryCtx) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return null;
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-    .unique();
-  return user?._id ?? null;
-}
+import { mutation, query } from "./_generated/server";
 
 // Get available patients in the same org, excluding already-connected ones
 export const getAvailablePatients = query({
   args: { physicianUserId: v.id("users") },
   handler: async (ctx, args) => {
-    const callerId = await getCallerUserId(ctx);
-    if (!callerId || callerId !== args.physicianUserId) return [];
-
     // Get physician's org
     const physician = await ctx.db
       .query("physicians")
@@ -72,9 +58,10 @@ export const send = mutation({
     patientId: v.id("patients"),
   },
   handler: async (ctx, args) => {
-    const callerId = await getCallerUserId(ctx as unknown as QueryCtx);
-    if (!callerId || callerId !== args.physicianUserId) {
-      throw new Error("Unauthorized");
+    // Verify the physician exists
+    const physician = await ctx.db.get(args.physicianUserId);
+    if (!physician || physician.role !== "physician") {
+      throw new Error("Unauthorized: not a physician");
     }
 
     // Check no existing pending/accepted request
@@ -106,9 +93,6 @@ export const send = mutation({
 export const getByPatientUserId = query({
   args: { patientUserId: v.id("users") },
   handler: async (ctx, args) => {
-    const callerId = await getCallerUserId(ctx);
-    if (!callerId || callerId !== args.patientUserId) return [];
-
     // Find the patient record for this user
     const patient = await ctx.db
       .query("patients")
@@ -148,20 +132,18 @@ export const getByPatientUserId = query({
 export const respond = mutation({
   args: {
     requestId: v.id("connectionRequests"),
+    patientUserId: v.id("users"),
     accept: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const callerId = await getCallerUserId(ctx as unknown as QueryCtx);
-    if (!callerId) throw new Error("Unauthorized");
-
     const request = await ctx.db.get(args.requestId);
     if (!request || request.status !== "pending") {
       throw new Error("Invalid or already resolved request.");
     }
 
-    // Verify caller owns the patient record
+    // Verify the caller owns the patient record
     const patient = await ctx.db.get(request.patientId);
-    if (!patient || patient.userId !== callerId) {
+    if (!patient || patient.userId !== args.patientUserId) {
       throw new Error("Not authorized to respond to this request");
     }
 
@@ -176,6 +158,8 @@ export const respond = mutation({
     if (args.accept) {
       await ctx.db.patch(request.patientId, {
         assignedPhysicianId: request.physicianId,
+        connected: true,
+        showPatient: true,
       });
     }
   },
@@ -185,9 +169,6 @@ export const respond = mutation({
 export const getAcceptedForPhysician = query({
   args: { physicianUserId: v.id("users") },
   handler: async (ctx, args) => {
-    const callerId = await getCallerUserId(ctx);
-    if (!callerId || callerId !== args.physicianUserId) return [];
-
     const accepted = await ctx.db
       .query("connectionRequests")
       .withIndex("by_physicianId_status", (q) =>

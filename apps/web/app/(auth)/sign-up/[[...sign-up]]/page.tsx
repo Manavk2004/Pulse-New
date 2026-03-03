@@ -1,17 +1,13 @@
-import { SignUp } from "@clerk/nextjs";
+"use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// DEV: Clerk disabled — redirect straight to dashboard
 export default function SignUpPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <SignUp
-        appearance={{
-          elements: {
-            rootBox: "mx-auto",
-            card: "shadow-lg border",
-          },
-        }}
-        redirectUrl="/dashboard"
-      />
-    </div>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return null;
 }

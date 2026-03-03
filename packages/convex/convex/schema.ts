@@ -30,6 +30,8 @@ export default defineSchema({
     ),
     organizationId: v.optional(v.id("organizations")),
     assignedPhysicianId: v.optional(v.id("users")),
+    connected: v.optional(v.boolean()),
+    showPatient: v.optional(v.boolean()),
     consentStatus: v.union(
       v.literal("pending"),
       v.literal("granted"),

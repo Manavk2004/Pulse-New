@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@repo/convex';
-import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock, Loader2 } from 'lucide-react';
+import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock, Loader2, UserPlus, Check, XCircle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -96,6 +96,33 @@ export default function PortalPage() {
     convexUser ? { userId: convexUser._id } : "skip"
   );
 
+  // Connection requests
+  const pendingRequests = useQuery(
+    api.connectionRequests.getByPatientUserId,
+    convexUser ? { patientUserId: convexUser._id } : "skip"
+  );
+  const respondToRequest = useMutation(api.connectionRequests.respond);
+  const [respondingAction, setRespondingAction] = useState<{
+    id: string;
+    action: "accept" | "decline";
+  } | null>(null);
+
+  const [respondError, setRespondError] = useState<string | null>(null);
+
+  const handleRespond = async (requestId: (typeof pendingRequests extends (infer T)[] | undefined ? T : never)["_id"], accept: boolean) => {
+    if (!convexUser) return;
+    setRespondError(null);
+    setRespondingAction({ id: requestId, action: accept ? "accept" : "decline" });
+    try {
+      await respondToRequest({ requestId, patientUserId: convexUser._id, accept });
+    } catch (error) {
+      console.error("Failed to respond to connection request:", error);
+      setRespondError("Failed to respond. Please try again.");
+    } finally {
+      setRespondingAction(null);
+    }
+  };
+
   const [chatOpen, setChatOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
   const [messages, setMessages] = useState([{
@@ -158,13 +185,77 @@ export default function PortalPage() {
   if (!clerkLoaded || (clerkUser && (convexUser === undefined || (convexUser && patientProfile === undefined)))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 px-8 py-6 flex items-center gap-4">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <span className="text-sm font-medium text-slate-700">Loading...</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 text-slate-900">
+      {/* Connection Request Error */}
+      {respondError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-600">
+          {respondError}
+        </div>
+      )}
+
+      {/* Pending Connection Requests Banner */}
+      <AnimatePresence>
+        {pendingRequests && pendingRequests.length > 0 && pendingRequests.map((req) => (
+          <motion.div
+            key={req._id}
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                <UserPlus size={24} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">
+                  {req.physicianName} wants to connect with you
+                </p>
+                {req.specialty && (
+                  <p className="text-xs text-slate-500 mt-0.5">{req.specialty}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => handleRespond(req._id, true)}
+                disabled={respondingAction?.id === req._id}
+                className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {respondingAction?.id === req._id && respondingAction.action === "accept" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
+                Confirm
+              </button>
+              <button
+                onClick={() => handleRespond(req._id, false)}
+                disabled={respondingAction?.id === req._id}
+                className="flex items-center gap-1.5 bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                {respondingAction?.id === req._id && respondingAction.action === "decline" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <XCircle size={14} />
+                )}
+                Decline
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+
       {/* Welcome Section */}
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
