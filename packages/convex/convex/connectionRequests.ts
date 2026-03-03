@@ -21,23 +21,9 @@ export const getAvailablePatients = query({
       )
       .collect();
 
-    // Filter out patients with pending/accepted requests from this physician
-    const existingRequests = await ctx.db
-      .query("connectionRequests")
-      .withIndex("by_physicianId", (q) => q.eq("physicianId", args.physicianUserId))
-      .collect();
-
-    const connectedPatientIds = new Set(
-      existingRequests
-        .filter((r) => r.status === "pending" || r.status === "accepted")
-        .map((r) => r.patientId)
-    );
-
-    const available = patients.filter((p) => !connectedPatientIds.has(p._id));
-
     // Return with user emails
     return Promise.all(
-      available.map(async (p) => {
+      patients.map(async (p) => {
         const user = await ctx.db.get(p.userId);
         return {
           _id: p._id,
@@ -76,8 +62,9 @@ export const send = mutation({
         (r.status === "pending" || r.status === "accepted")
     );
 
+    // If already connected or pending, just return the existing request
     if (duplicate) {
-      throw new Error("Connection request already exists for this patient.");
+      return duplicate._id;
     }
 
     return await ctx.db.insert("connectionRequests", {
@@ -99,12 +86,15 @@ export const getByPatientUserId = query({
       .withIndex("by_userId", (q) => q.eq("userId", args.patientUserId))
       .unique();
 
+    console.log("getByPatientUserId - patient record:", patient?._id, "for userId:", args.patientUserId);
     if (!patient) return [];
 
     const requests = await ctx.db
       .query("connectionRequests")
       .withIndex("by_patientId", (q) => q.eq("patientId", patient._id))
       .collect();
+
+    console.log("getByPatientUserId - connection requests found:", requests.length, requests.map(r => ({ status: r.status, patientId: r.patientId })));
 
     // Enrich with physician info
     return await Promise.all(
@@ -160,6 +150,8 @@ export const respond = mutation({
         assignedPhysicianId: request.physicianId,
         connected: true,
         showPatient: true,
+        consentStatus: "granted" as const,
+        consentTimestamp: Date.now(),
       });
     }
   },

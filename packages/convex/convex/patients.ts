@@ -168,7 +168,23 @@ export const hidePatient = mutation({
     // TODO: Once ConvexProviderWithClerk is configured on the web app,
     // throw an error when identity is null instead of allowing unauthenticated access.
 
-    await ctx.db.patch(args.patientId, { showPatient: false });
+    await ctx.db.patch(args.patientId, {
+      showPatient: false,
+      connected: false,
+      assignedPhysicianId: undefined,
+      consentStatus: "pending" as const,
+      consentTimestamp: undefined,
+    });
+
+    // Delete all connection requests for this patient
+    const connectionRequests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_patientId", (q) => q.eq("patientId", args.patientId))
+      .collect();
+
+    await Promise.all(
+      connectionRequests.map((r) => ctx.db.delete(r._id))
+    );
   },
 });
 
