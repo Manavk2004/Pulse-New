@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -92,7 +92,7 @@ function Header({
   onSearchChange: (value: string) => void;
   isMobileNavOpen: boolean;
   onMobileNavToggle: () => void;
-  mobileNavButtonRef: React.RefObject<HTMLButtonElement>;
+  mobileNavButtonRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <header className="sticky top-0 z-10 bg-[#f8fafc]/80 backdrop-blur-md px-8 py-4 flex items-center justify-between border-b border-slate-200">
@@ -145,7 +145,7 @@ function Header({
   );
 }
 
-export default function PortalLayout({
+function PortalLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -277,5 +277,17 @@ export default function PortalLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export default function PortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <PortalLayoutInner>{children}</PortalLayoutInner>
+    </Suspense>
   );
 }
