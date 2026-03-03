@@ -3,9 +3,11 @@ import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 // System prompt for the medical assistant
 const SYSTEM_PROMPT = `You are Pulse, a medical assistant AI. Your role is to:
@@ -82,7 +84,7 @@ export const chat = internalAction({
     });
 
     // Call OpenAI
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages: chatMessages,
       max_tokens: 1024,

@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
   Activity,
   Calendar,
@@ -87,12 +88,16 @@ function Header({
   isMobileNavOpen,
   onMobileNavToggle,
   mobileNavButtonRef,
+  userName,
+  userImageUrl,
 }: {
   searchText: string;
   onSearchChange: (value: string) => void;
   isMobileNavOpen: boolean;
   onMobileNavToggle: () => void;
   mobileNavButtonRef: React.RefObject<HTMLButtonElement | null>;
+  userName: string;
+  userImageUrl?: string;
 }) {
   return (
     <header className="sticky top-0 z-10 bg-[#f8fafc]/80 backdrop-blur-md px-8 py-4 flex items-center justify-between border-b border-slate-200">
@@ -131,14 +136,20 @@ function Header({
         <div className="h-8 w-px bg-slate-200 mx-2"></div>
         <div className="flex items-center gap-3 cursor-pointer group">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-slate-800 leading-none">Alex Johnson</p>
-            <p className="text-xs text-slate-500 mt-1">Patient #82104</p>
+            <p className="text-sm font-semibold text-slate-800 leading-none">{userName}</p>
+            <p className="text-xs text-slate-500 mt-1">Patient Portal</p>
           </div>
-          <img
-            src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"
-            alt="Profile"
-            className="w-10 h-10 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-all"
-          />
+          {userImageUrl ? (
+            <img
+              src={userImageUrl}
+              alt="Profile"
+              className="w-10 h-10 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-all"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-blue-100 flex items-center justify-center group-hover:border-blue-200 transition-all">
+              <User size={20} className="text-blue-600" />
+            </div>
+          )}
         </div>
       </div>
     </header>
@@ -152,12 +163,22 @@ function PortalLayoutInner({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const dashboardTab = searchParams.get("tab") ?? "Overview";
+  const pathname = usePathname();
+  const { user } = useUser();
+  const isMessagesRoute = pathname.startsWith("/portal/messages");
+  const dashboardTab = isMessagesRoute
+    ? "Messages"
+    : (searchParams.get("tab") ?? "Overview");
   const [searchText, setSearchText] = useState("");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
   const mobileNavRef = useRef<HTMLDivElement>(null);
   const handleDashboardTabChange = (tab: string) => {
+    if (tab === "Messages") {
+      if (!user?.id) return;
+      router.push(`/portal/messages/${user.id}`);
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tab);
     router.replace(`/portal?${params.toString()}`, { scroll: false });
@@ -271,6 +292,8 @@ function PortalLayoutInner({
           isMobileNavOpen={isMobileNavOpen}
           onMobileNavToggle={() => setIsMobileNavOpen((prev) => !prev)}
           mobileNavButtonRef={mobileNavButtonRef}
+          userName={user?.fullName ?? user?.firstName ?? "Patient"}
+          userImageUrl={user?.imageUrl}
         />
         <main className="flex-1 overflow-y-auto">
           {children}
