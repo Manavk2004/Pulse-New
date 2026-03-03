@@ -68,10 +68,10 @@ export default function PhysicianOnboardingPage() {
 
   // Redirect if physician profile already exists
   useEffect(() => {
-    if (existingPhysician) {
-      router.replace("/");
+    if (existingPhysician && convexUser) {
+      router.replace(`/${convexUser._id}`);
     }
-  }, [existingPhysician, router]);
+  }, [existingPhysician, convexUser, router]);
 
   // Redirect unauthenticated users
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function PhysicianOnboardingPage() {
         organizationId: selectedOrgId as any,
       });
 
-      router.replace("/");
+      router.replace(`/${userId}`);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again."

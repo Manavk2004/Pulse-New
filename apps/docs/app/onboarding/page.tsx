@@ -114,6 +114,8 @@ export default function OnboardingPage() {
         lastName,
         dateOfBirth,
         phoneNumber: phoneNumber || undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        organizationId: selectedOrgId as any,
       });
 
       // Assign physician

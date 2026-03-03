@@ -28,6 +28,7 @@ export const create = mutation({
     lastName: v.string(),
     dateOfBirth: v.string(),
     phoneNumber: v.optional(v.string()),
+    organizationId: v.optional(v.id("organizations")),
   },
   handler: async (ctx, args) => {
     // Check if patient already exists
@@ -46,6 +47,7 @@ export const create = mutation({
       lastName: args.lastName,
       dateOfBirth: args.dateOfBirth,
       phoneNumber: args.phoneNumber,
+      organizationId: args.organizationId,
       consentStatus: "pending",
     });
   },
@@ -58,6 +60,7 @@ export const update = mutation({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
+    organizationId: v.optional(v.id("organizations")),
     emergencyContact: v.optional(
       v.object({
         name: v.string(),
@@ -112,16 +115,23 @@ export const assignPhysician = mutation({
   },
 });
 
-// Get patients for a physician
+// Get patients for a physician (enriched with email)
 export const getByPhysician = query({
   args: { physicianId: v.id("users") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const patients = await ctx.db
       .query("patients")
       .withIndex("by_assignedPhysician", (q) =>
         q.eq("assignedPhysicianId", args.physicianId)
       )
       .collect();
+
+    return Promise.all(
+      patients.map(async (p) => {
+        const user = await ctx.db.get(p.userId);
+        return { ...p, email: user?.email ?? "" };
+      })
+    );
   },
 });
 

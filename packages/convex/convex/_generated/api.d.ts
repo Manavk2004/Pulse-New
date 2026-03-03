@@ -13,6 +13,7 @@ import type * as agent_index from "../agent/index.js";
 import type * as agent_threads from "../agent/threads.js";
 import type * as auditLog from "../auditLog.js";
 import type * as chats from "../chats.js";
+import type * as connectionRequests from "../connectionRequests.js";
 import type * as documents from "../documents.js";
 import type * as escalations from "../escalations.js";
 import type * as organizations from "../organizations.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   "agent/threads": typeof agent_threads;
   auditLog: typeof auditLog;
   chats: typeof chats;
+  connectionRequests: typeof connectionRequests;
   documents: typeof documents;
   escalations: typeof escalations;
   organizations: typeof organizations;

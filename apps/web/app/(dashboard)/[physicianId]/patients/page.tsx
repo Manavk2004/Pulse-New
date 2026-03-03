@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useRouter, useParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex";
 import {
   Users,
@@ -13,33 +14,39 @@ import {
   User,
   Shield,
   ChevronRight,
+  PlusCircle,
+  Loader2,
+  Check,
+  UserPlus,
 } from "lucide-react";
 import gsap from "gsap";
 
 interface PatientRecord {
   _id: string;
-  firstname?: string;
-  lastname?: string;
-  middleinitial?: string;
-  physician?: string;
-  username?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
-  phone?: string;
-  dateofbirth?: string;
+  phoneNumber?: string;
+  dateOfBirth?: string;
+  assignedPhysicianId?: string;
+  consentStatus?: string;
   [key: string]: unknown;
 }
 
 const HIDDEN_FIELDS = new Set([
   "_id",
   "_creationTime",
-  "firstname",
-  "lastname",
-  "middleinitial",
-  "physician",
-  "username",
+  "firstName",
+  "lastName",
   "email",
-  "phone",
-  "dateofbirth",
+  "phoneNumber",
+  "dateOfBirth",
+  "userId",
+  "assignedPhysicianId",
+  "consentStatus",
+  "consentTimestamp",
+  "organizationId",
+  "emergencyContact",
 ]);
 
 function formatFieldName(key: string): string {
@@ -51,15 +58,11 @@ function formatFieldName(key: string): string {
 }
 
 function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onViewProfile: () => void }) {
-  const fullName = [
-    patient.firstname,
-    patient.middleinitial ? `${patient.middleinitial}.` : null,
-    patient.lastname,
-  ]
+  const fullName = [patient.firstName, patient.lastName]
     .filter(Boolean)
     .join(" ");
 
-  const initials = [patient.firstname?.[0], patient.lastname?.[0]]
+  const initials = [patient.firstName?.[0], patient.lastName?.[0]]
     .filter(Boolean)
     .join("")
     .toUpperCase();
@@ -81,8 +84,8 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
             <h3 className="text-lg font-bold text-slate-800 truncate">
               {fullName || "Unknown Patient"}
             </h3>
-            {patient.username && (
-              <p className="text-sm text-slate-500 truncate">@{patient.username}</p>
+            {patient.email && (
+              <p className="text-sm text-slate-500 truncate">{patient.email}</p>
             )}
           </div>
           <button
@@ -97,20 +100,6 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
 
       {/* Card Body */}
       <div className="px-6 py-4 space-y-3">
-        {patient.physician && (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-              <Stethoscope size={16} className="text-teal-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-400 font-medium">Physician</p>
-              <p className="text-sm font-semibold text-slate-700 truncate">
-                {String(patient.physician)}
-              </p>
-            </div>
-          </div>
-        )}
-
         {patient.email && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -125,7 +114,7 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
           </div>
         )}
 
-        {patient.phone && (
+        {patient.phoneNumber && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
               <Phone size={16} className="text-amber-600" />
@@ -133,13 +122,13 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
             <div className="min-w-0">
               <p className="text-xs text-slate-400 font-medium">Phone</p>
               <p className="text-sm font-semibold text-slate-700 truncate">
-                {String(patient.phone)}
+                {String(patient.phoneNumber)}
               </p>
             </div>
           </div>
         )}
 
-        {patient.dateofbirth && (
+        {patient.dateOfBirth && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
               <User size={16} className="text-purple-600" />
@@ -147,7 +136,7 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
             <div className="min-w-0">
               <p className="text-xs text-slate-400 font-medium">Date of Birth</p>
               <p className="text-sm font-semibold text-slate-700 truncate">
-                {String(patient.dateofbirth)}
+                {String(patient.dateOfBirth)}
               </p>
             </div>
           </div>
@@ -184,10 +173,199 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
   );
 }
 
+function AddPatientDialog({
+  open,
+  onOpenChange,
+  physicianUserId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  physicianUserId: string | undefined;
+}) {
+  const availablePatients = useQuery(
+    api.connectionRequests.getAvailablePatients,
+    physicianUserId ? { physicianUserId: physicianUserId as any } : "skip"
+  );
+  const sendRequest = useMutation(api.connectionRequests.send);
+  const [search, setSearch] = useState("");
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState("");
+
+  const filtered = availablePatients?.filter((p) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    const name = `${p.firstName} ${p.lastName}`.toLowerCase();
+    return name.includes(q) || p.email.toLowerCase().includes(q);
+  });
+
+  const handleSend = async (patientId: string) => {
+    if (!physicianUserId || sendingId) return;
+    setError("");
+    setSendingId(patientId);
+    try {
+      await sendRequest({
+        physicianUserId: physicianUserId as any,
+        patientId: patientId as any,
+      });
+      setSentIds((prev) => new Set(prev).add(patientId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send request.");
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999]">
+      {/* Overlay */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={() => {
+          setSearch("");
+          setError("");
+          setSentIds(new Set());
+          onOpenChange(false);
+        }}
+      />
+      {/* Content */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[80vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-lg font-bold text-slate-800">Add Patient</h2>
+            <button
+              onClick={() => {
+                setSearch("");
+                setError("");
+                setSentIds(new Set());
+                onOpenChange(false);
+              }}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <span className="text-lg leading-none">&times;</span>
+            </button>
+          </div>
+          <p className="text-sm text-slate-500">
+            Select a registered patient to send a connection request. They will need to confirm on their dashboard.
+          </p>
+        </div>
+
+        {/* Search */}
+        <div className="px-6 py-3">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={16}
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div className="px-6">
+            <p className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
+              {error}
+            </p>
+          </div>
+        )}
+
+        {/* Patient List */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          {availablePatients === undefined ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : filtered && filtered.length > 0 ? (
+            <div className="space-y-2">
+              {filtered.map((patient) => {
+                const isSent = sentIds.has(patient._id);
+                const isSending = sendingId === patient._id;
+                const initials = `${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`.toUpperCase();
+
+                return (
+                  <div
+                    key={patient._id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
+                        {patient.firstName} {patient.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {patient.email}
+                      </p>
+                    </div>
+                    {isSent ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                        <Check size={14} />
+                        Sent
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleSend(patient._id)}
+                        disabled={isSending}
+                        className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {isSending ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <UserPlus size={14} />
+                        )}
+                        {isSending ? "Sending..." : "Send Request"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Users size={22} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700">
+                {search ? "No matching patients" : "No available patients"}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {search
+                  ? "Try a different search term."
+                  : "All registered patients are already connected or have pending requests."}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PatientsPage() {
   const router = useRouter();
-  const patients = useQuery(api.user.getAll) as PatientRecord[] | undefined;
+  const params = useParams();
+  const physicianId = params.physicianId as string;
+  const { user: clerkUser } = useUser();
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    clerkUser ? { clerkId: clerkUser.id } : "skip"
+  );
+  const patients = useQuery(
+    api.patients.getByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  ) as PatientRecord[] | undefined;
   const [searchQuery, setSearchQuery] = useState("");
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -207,16 +385,9 @@ export default function PatientsPage() {
   const filteredPatients = patients?.filter((p) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
-    const fullName = [p.firstname, p.middleinitial ? `${p.middleinitial}.` : null, p.lastname].filter(Boolean).join(" ").toLowerCase();
-    const physician = (p.physician ?? "").toString().toLowerCase();
-    const username = (p.username ?? "").toString().toLowerCase();
-    const email = (p.email ?? "").toString().toLowerCase();
-    return (
-      fullName.includes(query) ||
-      physician.includes(query) ||
-      username.includes(query) ||
-      email.includes(query)
-    );
+    const fullName = `${p.firstName ?? ""} ${p.lastName ?? ""}`.toLowerCase();
+    const email = (p.email ?? "").toLowerCase();
+    return fullName.includes(query) || email.includes(query);
   });
 
   return (
@@ -254,6 +425,13 @@ export default function PatientsPage() {
               className="bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm w-64"
             />
           </div>
+          <button
+            onClick={() => setAddDialogOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-all shadow-md shadow-blue-100 text-sm"
+          >
+            <PlusCircle size={18} />
+            <span>Add Patient</span>
+          </button>
         </div>
       </section>
 
@@ -275,10 +453,10 @@ export default function PatientsPage() {
             <Stethoscope size={22} className="text-teal-600" />
           </div>
           <div>
-            <p className="text-sm text-slate-500 font-medium">Physicians</p>
+            <p className="text-sm text-slate-500 font-medium">Consented</p>
             <p className="text-2xl font-bold text-slate-800">
               {patients
-                ? new Set(patients.map((p) => p.physician).filter(Boolean)).size
+                ? patients.filter((p) => p.consentStatus === "granted").length
                 : "—"}
             </p>
           </div>
@@ -322,7 +500,7 @@ export default function PatientsPage() {
             <PatientCard
               key={patient._id}
               patient={patient}
-              onViewProfile={() => router.push(`/patients/${patient._id}`)}
+              onViewProfile={() => router.push(`/${physicianId}/patients/${patient._id}`)}
             />
           ))}
         </section>
@@ -344,6 +522,12 @@ export default function PatientsPage() {
           </p>
         </section>
       )}
+
+      <AddPatientDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        physicianUserId={convexUser?._id}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
@@ -18,22 +18,31 @@ import {
   Loader2,
 } from "lucide-react";
 
-const tabs = [
-  { label: "Overview", icon: LayoutDashboard, href: "/" },
-  { label: "My Patients", icon: Users, href: "/patients" },
-  { label: "Appointments", icon: Calendar, href: "/appointments" },
-  { label: "Messages", icon: MessageSquare, href: "/messages" },
-  { label: "Escalations", icon: AlertTriangle, href: "/escalations" },
-  { label: "Settings", icon: Settings, href: "/settings" },
+const tabDefinitions = [
+  { label: "Overview", icon: LayoutDashboard, path: "" },
+  { label: "My Patients", icon: Users, path: "/patients" },
+  { label: "Appointments", icon: Calendar, path: "/appointments" },
+  { label: "Messages", icon: MessageSquare, path: "/messages" },
+  { label: "Escalations", icon: AlertTriangle, path: "/escalations" },
+  { label: "Settings", icon: Settings, path: "/settings" },
 ];
 
+function buildTabs(physicianId: string) {
+  return tabDefinitions.map((t) => ({
+    ...t,
+    href: `/${physicianId}${t.path}`,
+  }));
+}
+
 function DashboardSidebar({
+  tabs,
   activeTab,
   onTabChange,
   onNavigate,
   className,
   showBrand = true,
 }: {
+  tabs: ReturnType<typeof buildTabs>;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onNavigate?: () => void;
@@ -170,6 +179,8 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useParams();
+  const physicianId = params.physicianId as string | undefined;
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
 
   // Look up Convex user and physician profile for onboarding guard
@@ -187,8 +198,19 @@ export default function DashboardLayout({
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
   const mobileNavRef = useRef<HTMLDivElement>(null);
 
+  // Use convexUser._id as fallback if physicianId from URL isn't available yet
+  const resolvedPhysicianId = physicianId || convexUser?._id || "";
+  const tabs = buildTabs(resolvedPhysicianId);
+
+  // Match active tab by stripping the /{physicianId} prefix
+  const pathWithoutId = physicianId
+    ? pathname.replace(`/${physicianId}`, "") || "/"
+    : pathname;
   const activeTab =
-    tabs.find((t) => t.href === pathname)?.label ?? "Overview";
+    tabDefinitions.find((t) => {
+      const tabPath = t.path || "/";
+      return pathWithoutId === tabPath;
+    })?.label ?? "Overview";
 
   const handleTabChange = (label: string) => {
     const tab = tabs.find((t) => t.label === label);
@@ -196,6 +218,13 @@ export default function DashboardLayout({
       router.push(tab.href);
     }
   };
+
+  // Validate physician ID matches authenticated user
+  useEffect(() => {
+    if (convexUser && physicianId && convexUser._id !== physicianId) {
+      router.replace("/sign-in");
+    }
+  }, [convexUser, physicianId, router]);
 
   // Redirect to onboarding if physician user has no physician profile
   useEffect(() => {
@@ -310,6 +339,7 @@ export default function DashboardLayout({
             </button>
           </div>
           <DashboardSidebar
+            tabs={tabs}
             activeTab={activeTab}
             onTabChange={handleTabChange}
             onNavigate={() => setIsMobileNavOpen(false)}
@@ -318,7 +348,7 @@ export default function DashboardLayout({
           />
         </div>
       </div>
-      <DashboardSidebar activeTab={activeTab} onTabChange={handleTabChange} />
+      <DashboardSidebar tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         <Header
           searchText={searchText}

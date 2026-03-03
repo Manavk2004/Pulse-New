@@ -28,6 +28,7 @@ export default defineSchema({
         phoneNumber: v.string(),
       })
     ),
+    organizationId: v.optional(v.id("organizations")),
     assignedPhysicianId: v.optional(v.id("users")),
     consentStatus: v.union(
       v.literal("pending"),
@@ -39,6 +40,7 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_assignedPhysician", ["assignedPhysicianId"])
     .index("by_consentStatus", ["consentStatus"])
+    .index("by_organizationId", ["organizationId"])
     .searchIndex("search_name", {
       searchField: "firstName",
       filterFields: ["lastName"],
@@ -173,6 +175,23 @@ export default defineSchema({
     .index("by_action", ["action"])
     .index("by_resourceType", ["resourceType"])
     .index("by_timestamp", ["timestamp"]),
+
+  // Connection requests between physicians and patients
+  connectionRequests: defineTable({
+    physicianId: v.id("users"),
+    patientId: v.id("patients"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("rejected")
+    ),
+    createdAt: v.number(),
+    respondedAt: v.optional(v.number()),
+  })
+    .index("by_physicianId", ["physicianId"])
+    .index("by_patientId", ["patientId"])
+    .index("by_status", ["status"])
+    .index("by_physicianId_status", ["physicianId", "status"]),
 
   // Knowledge base for RAG
   knowledgeBase: defineTable({
