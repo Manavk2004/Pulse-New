@@ -91,6 +91,15 @@ export default defineSchema({
         tags: v.optional(v.array(v.string())),
       })
     ),
+    aiSummary: v.optional(v.string()),
+    aiSummaryStatus: v.optional(
+      v.union(
+        v.literal("generating"),
+        v.literal("done"),
+        v.literal("failed")
+      )
+    ),
+    embedding: v.optional(v.array(v.float64())),
   })
     .index("by_patientId", ["patientId"])
     .index("by_uploadedBy", ["uploadedBy"])
@@ -201,6 +210,44 @@ export default defineSchema({
     .index("by_patientId", ["patientId"])
     .index("by_status", ["status"])
     .index("by_physicianId_status", ["physicianId", "status"]),
+
+  // Physician availability slots
+  availabilitySlots: defineTable({
+    physicianId: v.id("users"),
+    date: v.string(), // ISO "2026-03-15"
+    startTime: v.string(), // "09:00"
+    endTime: v.string(), // "09:30"
+    isBooked: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_physician", ["physicianId"])
+    .index("by_physician_date", ["physicianId", "date"]),
+
+  // Booked appointments
+  appointments: defineTable({
+    patientId: v.id("patients"),
+    physicianId: v.id("users"),
+    slotId: v.id("availabilitySlots"),
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    status: v.union(
+      v.literal("scheduled"),
+      v.literal("completed"),
+      v.literal("cancelled"),
+      v.literal("no_show")
+    ),
+    reason: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    cancelledBy: v.optional(
+      v.union(v.literal("patient"), v.literal("physician"))
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_patient", ["patientId"])
+    .index("by_physician", ["physicianId"])
+    .index("by_physician_date", ["physicianId", "date"]),
 
   // Knowledge base for RAG
   knowledgeBase: defineTable({

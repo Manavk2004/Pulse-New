@@ -98,6 +98,28 @@ export const sendMessage = action({
   },
   handler: async (ctx, args) => {
     // TODO: Add server-side auth once ConvexProviderWithClerk is configured
+
+    // Check if the chat is escalated — if so, save the message but don't trigger AI
+    const chat = await ctx.runQuery(internal.chats.getByThreadId, {
+      threadId: args.threadId,
+    });
+    if (chat?.status === "escalated") {
+      // Save the patient's message to the thread so the physician can see it
+      try {
+        await healthAgent.saveMessage(ctx, {
+          threadId: args.threadId,
+          message: { role: "user", content: args.content },
+          skipEmbeddings: true,
+        });
+        return "Your message has been sent. A physician will respond shortly.";
+      } catch (error: unknown) {
+        console.error("Failed to save escalated message:", error);
+        throw new Error(
+          "Sorry, I was unable to send your message. Please try again."
+        );
+      }
+    }
+
     try {
       const { thread } = await healthAgent.continueThread(ctx, {
         threadId: args.threadId,

@@ -123,13 +123,28 @@ function MessagesPageInner() {
 
   // Derive active chat status for locking (use unfiltered list so filter tab doesn't affect lock state)
   const activeChat = allChats.find((c) => c.threadId === activeThreadId);
-  const isChatLocked = activeChat?.status === "resolved" || activeChat?.status === "escalated";
+  // Unlock escalated chats once the physician has responded so the patient can reply
+  const hasPhysicianResponse = messages.some((msg) => {
+    const content = msg.message?.content;
+    const text = typeof content === "string" ? content : "";
+    return msg.message?.role === "assistant" && text.startsWith("**Dr.");
+  });
+  const isChatLocked =
+    activeChat?.status === "resolved" ||
+    (activeChat?.status === "escalated" && !hasPhysicianResponse);
 
   // Show the optimistic bubble only until the real message syncs from the DB.
   // Once messages.length increases beyond what it was at send time, the real
   // message has arrived and we hide the optimistic duplicate.
   const showPendingMessage =
     pendingUserMessage && messages.length <= messageCountAtSend.current;
+
+  // Clear pending message once the real one syncs from the DB
+  useEffect(() => {
+    if (pendingUserMessage && messages.length > messageCountAtSend.current) {
+      setPendingUserMessage(null);
+    }
+  }, [pendingUserMessage, messages.length]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -233,9 +248,11 @@ function MessagesPageInner() {
       });
     } catch {
       setError("Failed to send message. Please try again.");
-    } finally {
       setPendingUserMessage(null);
+    } finally {
       setIsSending(false);
+      // Don't clear pendingUserMessage here — let the showPendingMessage
+      // check handle it once the real message syncs from the DB.
     }
   };
 
@@ -572,8 +589,8 @@ function MessagesPageInner() {
                 </div>
               )}
 
-              {/* Typing indicator */}
-              {isSending && (
+              {/* Typing indicator — hide only when chat is fully locked */}
+              {isSending && !isChatLocked && (
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100">
                     <Sparkles className="h-4 w-4 text-blue-600" />
@@ -601,10 +618,9 @@ function MessagesPageInner() {
                       : "This conversation has been resolved."}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
-                    This chat will be deleted in 24 hours.
                     {activeChat?.status === "escalated"
-                      ? " If you'd like to continue chatting with the assistant, press Continue."
-                      : " If you need more help, press Continue to reopen."}
+                      ? "Your physician will follow up with you here. If you'd like to continue chatting with the AI assistant instead, press Continue."
+                      : "If you need more help, press Continue to reopen."}
                   </p>
                   <button
                     onClick={handleReopenChat}

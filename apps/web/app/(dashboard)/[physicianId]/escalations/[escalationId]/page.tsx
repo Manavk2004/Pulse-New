@@ -57,6 +57,7 @@ export default function EscalationDetailPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [docFilter, setDocFilter] = useState("all");
+  const [showSummaryFor, setShowSummaryFor] = useState<string | null>(null);
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [resolveNotes, setResolveNotes] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -95,6 +96,7 @@ export default function EscalationDetailPage() {
   const sendPhysicianMessage = useMutation(api.agent.threads.sendPhysicianMessage);
   const acknowledgeMutation = useMutation(api.escalations.acknowledge);
   const resolveMutation = useMutation(api.escalations.resolve);
+  const requestSummaryMutation = useMutation(api.documents.requestSummary);
 
   // Filtered documents
   const filteredDocs = useMemo(() => {
@@ -281,28 +283,103 @@ export default function EscalationDetailPage() {
                 {/* Document Tabs */}
                 <div className="border-b border-slate-100 overflow-x-auto">
                   <div className="flex">
-                    {filteredDocs.map((doc) => (
-                      <button
-                        key={doc._id}
-                        onClick={() => setSelectedDocId(doc._id)}
-                        className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-                          (selectedDoc?._id ?? filteredDocs[0]?._id) === doc._id
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-slate-500 hover:text-slate-700"
-                        }`}
-                      >
-                        {doc.fileType.startsWith("image/") ? (
-                          <ImageIcon size={14} />
-                        ) : (
-                          <FileText size={14} />
-                        )}
-                        <span className="max-w-[120px] truncate">
-                          {doc.fileName}
-                        </span>
-                      </button>
-                    ))}
+                    {filteredDocs.map((doc) => {
+                      const isActive = (selectedDoc?._id ?? filteredDocs[0]?._id) === doc._id;
+                      const summaryStatus = (doc as any).aiSummaryStatus as string | undefined;
+                      const hasSummary = summaryStatus === "done";
+                      const isGenerating = summaryStatus === "generating";
+                      const isFailed = summaryStatus === "failed";
+
+                      return (
+                        <div key={doc._id} className="flex items-center">
+                          <button
+                            onClick={() => setSelectedDocId(doc._id)}
+                            className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                              isActive
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-slate-500 hover:text-slate-700"
+                            }`}
+                          >
+                            {doc.fileType.startsWith("image/") ? (
+                              <ImageIcon size={14} />
+                            ) : (
+                              <FileText size={14} />
+                            )}
+                            <span className="max-w-[120px] truncate">
+                              {doc.fileName}
+                            </span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (hasSummary) {
+                                setSelectedDocId(doc._id);
+                                setShowSummaryFor(
+                                  showSummaryFor === doc._id ? null : doc._id
+                                );
+                              } else if (!isGenerating) {
+                                setSelectedDocId(doc._id);
+                                setShowSummaryFor(doc._id);
+                                requestSummaryMutation({ documentId: doc._id as any });
+                              }
+                            }}
+                            title={
+                              hasSummary
+                                ? "View AI summary"
+                                : isGenerating
+                                  ? "Generating summary..."
+                                  : isFailed
+                                    ? "Retry AI summary"
+                                    : "Generate AI summary"
+                            }
+                            className={`p-1.5 mr-1 rounded-md transition-colors ${
+                              hasSummary
+                                ? "text-violet-600 hover:bg-violet-50"
+                                : isGenerating
+                                  ? "text-amber-500"
+                                  : isFailed
+                                    ? "text-red-500 hover:bg-red-50"
+                                    : "text-slate-400 hover:text-violet-600 hover:bg-violet-50"
+                            }`}
+                          >
+                            {isGenerating ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Sparkles size={14} className={hasSummary ? "fill-violet-600" : ""} />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+
+                {/* AI Summary Overlay */}
+                {selectedDoc &&
+                  showSummaryFor === selectedDoc._id &&
+                  (selectedDoc as any).aiSummary && (
+                    <div className="mx-4 mt-3 animate-in slide-in-from-top-2 duration-200">
+                      <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Sparkles size={14} className="text-violet-600 fill-violet-600" />
+                            <span className="text-xs font-semibold text-violet-700">
+                              AI Summary
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setShowSummaryFor(null)}
+                            className="text-violet-400 hover:text-violet-600 text-sm"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">
+                          {(selectedDoc as any).aiSummary}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                 {/* Document Viewer */}
                 <div className="flex-1 p-4">
@@ -496,7 +573,7 @@ export default function EscalationDetailPage() {
               onChange={(e) => setResolveNotes(e.target.value)}
               placeholder="Resolution notes (optional)..."
               rows={3}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 mb-4"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 mb-4"
             />
             <div className="flex gap-3 justify-end">
               <button

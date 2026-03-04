@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 // Create a new chat session
@@ -75,6 +75,17 @@ export const getById = query({
   args: { chatId: v.id("chats") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.chatId);
+  },
+});
+
+// Get chat by threadId (internal — used by sendMessage to check status)
+export const getByThreadId = internalQuery({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("chats")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .unique();
   },
 });
 

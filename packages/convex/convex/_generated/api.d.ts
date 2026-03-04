@@ -11,7 +11,9 @@
 import type * as agent_chat from "../agent/chat.js";
 import type * as agent_index from "../agent/index.js";
 import type * as agent_threads from "../agent/threads.js";
+import type * as appointments from "../appointments.js";
 import type * as auditLog from "../auditLog.js";
+import type * as availabilitySlots from "../availabilitySlots.js";
 import type * as chats from "../chats.js";
 import type * as connectionRequests from "../connectionRequests.js";
 import type * as documents from "../documents.js";
@@ -32,7 +34,9 @@ declare const fullApi: ApiFromModules<{
   "agent/chat": typeof agent_chat;
   "agent/index": typeof agent_index;
   "agent/threads": typeof agent_threads;
+  appointments: typeof appointments;
   auditLog: typeof auditLog;
+  availabilitySlots: typeof availabilitySlots;
   chats: typeof chats;
   connectionRequests: typeof connectionRequests;
   documents: typeof documents;
