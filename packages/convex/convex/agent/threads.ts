@@ -1,9 +1,10 @@
 import { v } from "convex/values";
 import { query, mutation, action } from "../_generated/server";
-import { components } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import { paginationOptsValidator } from "convex/server";
 import { healthAgent } from "./index";
 import { listMessages } from "@convex-dev/agent";
+import { z } from "zod";
 
 // List all threads for a user (sidebar)
 export const listThreads = query({
@@ -105,6 +106,37 @@ export const sendMessage = action({
 
       const result = await thread.generateText({
         prompt: args.content,
+        tools: {
+          escalateToPhysician: {
+            description:
+              "Escalate the conversation to the patient's physician. Call this when the patient requests to speak with their doctor, expresses frustration, has concerns beyond AI scope, or describes serious/worsening symptoms.",
+            inputSchema: z.object({
+              reason: z
+                .string()
+                .describe(
+                  "A clear, concise summary of why this conversation is being escalated"
+                ),
+            }),
+            execute: async ({ reason }: { reason: string }) => {
+              await ctx.runMutation(internal.chats.escalateByThreadId, {
+                threadId: args.threadId,
+                reason,
+              });
+              return { success: true, message: "Conversation has been escalated to the physician." };
+            },
+          },
+          resolveConversation: {
+            description:
+              "Mark the conversation as resolved. Call this when the patient indicates their issue is resolved, they no longer need help, or they explicitly say the conversation can be closed.",
+            inputSchema: z.object({}),
+            execute: async () => {
+              await ctx.runMutation(internal.chats.resolveByThreadId, {
+                threadId: args.threadId,
+              });
+              return { success: true, message: "Conversation has been marked as resolved." };
+            },
+          },
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 / AI SDK v5 type mismatch
       });
 
       return result.text;

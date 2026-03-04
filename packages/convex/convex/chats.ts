@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 // Create a new chat session
 export const create = mutation({
@@ -168,6 +168,152 @@ export const listByClerkUser = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .order("desc")
       .collect();
+  },
+});
+
+// Escalate a chat by its threadId (called by the AI agent tool)
+export const escalateByThreadId = internalMutation({
+  args: {
+    threadId: v.string(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .unique();
+    if (!chat) {
+      throw new Error("Chat not found for the given thread.");
+    }
+
+    // Look up the patient to find their assigned physician
+    const patient = await ctx.db.get(chat.patientId);
+    if (!patient) {
+      throw new Error("Patient record not found.");
+    }
+
+    // Resolve the assignee before changing chat status
+    let assigneeId = patient.assignedPhysicianId;
+    let escalationReason = args.reason;
+
+    if (!assigneeId) {
+      const admins = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "admin"))
+        .collect();
+      assigneeId = admins[0]?._id;
+      if (!assigneeId) {
+        throw new Error("No physician assigned and no admin available to handle escalation.");
+      }
+      escalationReason = `[UNASSIGNED PATIENT] ${args.reason}`;
+    }
+
+    // Determine severity from reason keywords
+    const lowerReason = args.reason.toLowerCase();
+    const urgentKeywords = ["chest pain", "heart attack", "stroke", "difficulty breathing", "severe bleeding", "unconscious", "suicide", "overdose"];
+    const highKeywords = ["severe pain", "high fever", "infection", "allergic reaction", "swelling", "vomiting blood"];
+    const mediumKeywords = ["persistent pain", "worsening", "medication concern", "new symptoms", "fever"];
+
+    let severity: "low" | "medium" | "high" | "urgent" = "low";
+    if (urgentKeywords.some((kw) => lowerReason.includes(kw))) {
+      severity = "urgent";
+    } else if (highKeywords.some((kw) => lowerReason.includes(kw))) {
+      severity = "high";
+    } else if (mediumKeywords.some((kw) => lowerReason.includes(kw))) {
+      severity = "medium";
+    }
+
+    // Update chat status to escalated
+    await ctx.db.patch(chat._id, {
+      status: "escalated",
+      escalatedAt: Date.now(),
+      escalatedTo: assigneeId,
+    });
+
+    // Create an escalation record
+    await ctx.db.insert("escalations", {
+      chatId: chat._id,
+      patientId: chat.patientId,
+      physicianId: assigneeId,
+      reason: escalationReason,
+      severity,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return { escalated: true, chatId: chat._id };
+  },
+});
+
+// Resolve a chat by its threadId (called by the AI agent tool)
+export const resolveByThreadId = internalMutation({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .unique();
+    if (!chat) {
+      throw new Error("Chat not found for the given thread.");
+    }
+
+    await ctx.db.patch(chat._id, {
+      status: "resolved",
+    });
+
+    // Also resolve any pending escalation for this chat
+    const pendingEscalation = await ctx.db
+      .query("escalations")
+      .withIndex("by_chatId", (q) => q.eq("chatId", chat._id))
+      .filter((q) => q.neq(q.field("status"), "resolved"))
+      .first();
+    if (pendingEscalation) {
+      await ctx.db.patch(pendingEscalation._id, {
+        status: "resolved",
+        resolvedAt: Date.now(),
+      });
+    }
+
+    return { resolved: true, chatId: chat._id };
+  },
+});
+
+// Reopen a resolved or escalated chat by its threadId
+export const reopenByThreadId = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated.");
+    }
+
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .unique();
+    if (!chat) {
+      throw new Error("Chat not found for the given thread.");
+    }
+
+    // Verify ownership
+    if (chat.userId) {
+      const user = await ctx.db.get(chat.userId);
+      if (!user || user.clerkId !== identity.subject) {
+        throw new Error("Not authorized to reopen this chat.");
+      }
+    }
+
+    await ctx.db.patch(chat._id, {
+      status: "unresolved",
+      escalatedAt: undefined,
+      escalatedTo: undefined,
+    });
+
+    return chat._id;
   },
 });
 

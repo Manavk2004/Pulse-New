@@ -31,13 +31,13 @@ const quickPrompts = [
 
 type StatusFilter = "all" | "unresolved" | "escalated" | "resolved";
 
-const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  unresolved: { dot: "bg-blue-500", label: "Unresolved" },
-  escalated: { dot: "bg-amber-500", label: "Escalated" },
-  resolved: { dot: "bg-green-500", label: "Resolved" },
+const STATUS_CONFIG: Record<string, { dot: string; badge: string; label: string }> = {
+  unresolved: { dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700 ring-blue-200", label: "Unresolved" },
+  escalated: { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700 ring-amber-200", label: "Escalated" },
+  resolved: { dot: "bg-green-500", badge: "bg-green-50 text-green-700 ring-green-200", label: "Resolved" },
 };
 
-const DEFAULT_STATUS = { dot: "bg-slate-400", label: "Unknown" };
+const DEFAULT_STATUS = { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 ring-slate-200", label: "Unknown" };
 
 const FILTER_TABS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -116,6 +116,11 @@ function MessagesPageInner() {
   const createThreadMutation = useMutation(api.agent.threads.createThread);
   const deleteThreadMutation = useMutation(api.agent.threads.deleteThread);
   const sendMessageAction = useAction(api.agent.threads.sendMessage);
+  const reopenChatMutation = useMutation(api.chats.reopenByThreadId);
+
+  // Derive active chat status for locking
+  const activeChat = chats.find((c) => c.threadId === activeThreadId);
+  const isChatLocked = activeChat?.status === "resolved" || activeChat?.status === "escalated";
 
   // Show the optimistic bubble only until the real message syncs from the DB.
   // Once messages.length increases beyond what it was at send time, the real
@@ -183,6 +188,15 @@ function MessagesPageInner() {
       setActiveThreadId(threadId);
     } catch {
       setError("Failed to create conversation.");
+    }
+  };
+
+  const handleReopenChat = async () => {
+    if (!activeThreadId) return;
+    try {
+      await reopenChatMutation({ threadId: activeThreadId });
+    } catch {
+      setError("Failed to reopen conversation.");
     }
   };
 
@@ -352,33 +366,39 @@ function MessagesPageInner() {
                     }
                   }}
                 >
-                  <div className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`inline-block h-2 w-2 rounded-full shrink-0 ${(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).dot}`}
-                        title={(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).label}
-                      />
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          activeThreadId === chat.threadId
-                            ? "text-blue-700"
-                            : "text-slate-700"
-                        }`}
-                      >
-                        {chat.title ?? "New Chat"}
+                  <div className="flex items-center px-3 py-2.5 pr-8">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`inline-block h-2 w-2 rounded-full shrink-0 ${(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).dot}`}
+                        />
+                        <p
+                          className={`text-sm font-medium truncate ${
+                            activeThreadId === chat.threadId
+                              ? "text-blue-700"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {chat.title ?? "New Chat"}
+                        </p>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5 ml-3.5">
+                        {new Date(chat.createdAt).toLocaleDateString(
+                          undefined,
+                          {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
                       </p>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5 ml-3.5">
-                      {new Date(chat.createdAt).toLocaleDateString(
-                        undefined,
-                        {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      )}
-                    </p>
+                    <span
+                      className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full ring-1 ring-inset ${(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).badge}`}
+                    >
+                      {(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).label}
+                    </span>
                   </div>
                   <button
                     onClick={(e) => {
@@ -560,33 +580,57 @@ function MessagesPageInner() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="border-t border-slate-200 bg-white px-6 py-4">
-              <div className="flex gap-3">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type your health question..."
-                  aria-label="Message input"
-                  rows={1}
-                  className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-                  disabled={isSending}
-                />
-                <button
-                  onClick={() => handleSend()}
-                  disabled={isSending || !input.trim()}
-                  aria-label="Send message"
-                  className="h-12 w-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white flex items-center justify-center shrink-0 transition-colors"
-                >
-                  <Send className="h-5 w-5" />
-                </button>
+            {/* Input Area / Locked Banner */}
+            {isChatLocked ? (
+              <div className="border-t border-slate-200 bg-slate-50 px-6 py-5">
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 font-medium">
+                    {activeChat?.status === "escalated"
+                      ? "This conversation has been escalated to your physician."
+                      : "This conversation has been resolved."}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    This chat will be deleted in 24 hours.
+                    {activeChat?.status === "escalated"
+                      ? " If you'd like to continue chatting with the assistant, press Continue."
+                      : " If you need more help, press Continue to reopen."}
+                  </p>
+                  <button
+                    onClick={handleReopenChat}
+                    className="mt-3 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl text-sm font-medium transition-colors"
+                  >
+                    Continue
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-2 text-center">
-                Press Enter to send &middot; Shift+Enter for new line
-              </p>
-            </div>
+            ) : (
+              <div className="border-t border-slate-200 bg-white px-6 py-4">
+                <div className="flex gap-3">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type your health question..."
+                    aria-label="Message input"
+                    rows={1}
+                    className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                    disabled={isSending}
+                  />
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={isSending || !input.trim()}
+                    aria-label="Send message"
+                    className="h-12 w-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white flex items-center justify-center shrink-0 transition-colors"
+                  >
+                    <Send className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  Press Enter to send &middot; Shift+Enter for new line
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
