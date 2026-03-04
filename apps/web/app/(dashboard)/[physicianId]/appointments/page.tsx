@@ -38,6 +38,8 @@ const DEV_CLERK_ID =
     ? "user_38r6neCjAIGzEOdJF5l4P9Ay6cj"
     : null;
 
+const DEFAULT_STATUS = { bg: "bg-slate-50", text: "text-slate-500", label: "Unknown" };
+
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   scheduled: { bg: "bg-blue-50", text: "text-blue-700", label: "Scheduled" },
   completed: { bg: "bg-green-50", text: "text-green-700", label: "Completed" },
@@ -136,9 +138,11 @@ export default function PhysicianAppointmentsPage() {
   const handleQuickGenerate = async () => {
     if (!convexUser) return;
     const slots: { date: string; startTime: string; endTime: string }[] = [];
-    let [h, m] = quickStart.split(":").map(Number);
-    const [endH, endM] = quickEnd.split(":").map(Number);
-    const endMinutes = endH * 60 + endM;
+    const startParts = quickStart.split(":").map(Number);
+    const endParts = quickEnd.split(":").map(Number);
+    let h = startParts[0] ?? 0;
+    let m = startParts[1] ?? 0;
+    const endMinutes = (endParts[0] ?? 0) * 60 + (endParts[1] ?? 0);
 
     while (h * 60 + m + quickDuration <= endMinutes) {
       const start = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -319,7 +323,7 @@ export default function PhysicianAppointmentsPage() {
         ) : (
           <div className="space-y-3">
             {bookedAppointments.map((appt) => {
-              const statusCfg = STATUS_CONFIG[appt.status] ?? STATUS_CONFIG.scheduled;
+              const statusCfg = STATUS_CONFIG[appt.status] ?? DEFAULT_STATUS;
               return (
                 <div key={appt._id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-all">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">

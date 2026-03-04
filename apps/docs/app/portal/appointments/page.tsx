@@ -31,6 +31,8 @@ import {
   isBefore,
 } from "date-fns";
 
+const DEFAULT_STATUS = { bg: "bg-slate-50", text: "text-slate-500", label: "Unknown" };
+
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   scheduled: { bg: "bg-blue-50", text: "text-blue-700", label: "Scheduled" },
   completed: { bg: "bg-green-50", text: "text-green-700", label: "Completed" },
@@ -348,7 +350,7 @@ export default function PatientAppointmentsPage() {
           </h2>
           <div className="space-y-3">
             {pastAppointments.slice(0, 10).map((appt) => {
-              const statusCfg = STATUS_CONFIG[appt.status] ?? STATUS_CONFIG.scheduled;
+              const statusCfg = STATUS_CONFIG[appt.status] ?? DEFAULT_STATUS;
               return (
                 <div key={appt._id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
