@@ -209,7 +209,8 @@ export default function DashboardLayout({
   const activeTab =
     tabDefinitions.find((t) => {
       const tabPath = t.path || "/";
-      return pathWithoutId === tabPath;
+      if (tabPath === "/") return pathWithoutId === "/";
+      return pathWithoutId === tabPath || pathWithoutId.startsWith(tabPath + "/");
     })?.label ?? "Overview";
 
   const handleTabChange = (label: string) => {

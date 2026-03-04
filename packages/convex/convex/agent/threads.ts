@@ -152,6 +152,27 @@ export const sendMessage = action({
   },
 });
 
+// Send a physician message directly into a thread (no AI generation)
+export const sendPhysicianMessage = mutation({
+  args: {
+    threadId: v.string(),
+    content: v.string(),
+    physicianName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // TODO: Add server-side auth — verify the caller is a physician with access to this thread
+    const prefixedContent = `**Dr. ${args.physicianName}:** ${args.content}`;
+    await healthAgent.saveMessage(ctx, {
+      threadId: args.threadId,
+      message: {
+        role: "assistant",
+        content: prefixedContent,
+      },
+      skipEmbeddings: true,
+    });
+  },
+});
+
 // Delete a thread
 export const deleteThread = mutation({
   args: {

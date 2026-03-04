@@ -93,13 +93,16 @@ function MessagesPageInner() {
   // Convex queries and mutations — skip if not authorized
   const chatsResult = useQuery(
     api.chats.listByClerkUser,
-    isAuthorized
-      ? { clerkId: userId, status: activeFilter === "all" ? undefined : activeFilter }
-      : "skip"
+    isAuthorized ? { clerkId: userId } : "skip"
   );
-  const chats = useMemo(
+  const allChats = useMemo(
     () => (chatsResult ?? []).filter((c) => c.threadId),
     [chatsResult]
+  );
+  // Filter client-side for sidebar display
+  const chats = useMemo(
+    () => activeFilter === "all" ? allChats : allChats.filter((c) => c.status === activeFilter),
+    [allChats, activeFilter]
   );
 
   const messagesResult = useQuery(
@@ -118,8 +121,8 @@ function MessagesPageInner() {
   const sendMessageAction = useAction(api.agent.threads.sendMessage);
   const reopenChatMutation = useMutation(api.chats.reopenByThreadId);
 
-  // Derive active chat status for locking
-  const activeChat = chats.find((c) => c.threadId === activeThreadId);
+  // Derive active chat status for locking (use unfiltered list so filter tab doesn't affect lock state)
+  const activeChat = allChats.find((c) => c.threadId === activeThreadId);
   const isChatLocked = activeChat?.status === "resolved" || activeChat?.status === "escalated";
 
   // Show the optimistic bubble only until the real message syncs from the DB.
@@ -449,8 +452,7 @@ function MessagesPageInner() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-blue-600" />
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {chats.find((c) => c.threadId === activeThreadId)?.title ??
-                    "New Chat"}
+                  {activeChat?.title ?? "New Chat"}
                 </h2>
               </div>
             </div>
@@ -514,6 +516,9 @@ function MessagesPageInner() {
                             .join("")
                         : "";
                   if (!textContent) return null;
+
+                  const isPhysician = !isUser && textContent.startsWith("**Dr.");
+
                   return (
                     <div
                       key={`${msg.order}-${msg.stepOrder}`}
@@ -523,11 +528,15 @@ function MessagesPageInner() {
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                           isUser
                             ? "bg-blue-600"
-                            : "bg-gradient-to-br from-blue-100 to-indigo-100"
+                            : isPhysician
+                              ? "bg-gradient-to-br from-emerald-100 to-teal-100"
+                              : "bg-gradient-to-br from-blue-100 to-indigo-100"
                         }`}
                       >
                         {isUser ? (
                           <User className="h-4 w-4 text-white" />
+                        ) : isPhysician ? (
+                          <Stethoscope className="h-4 w-4 text-emerald-600" />
                         ) : (
                           <Sparkles className="h-4 w-4 text-blue-600" />
                         )}
@@ -536,7 +545,9 @@ function MessagesPageInner() {
                         className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                           isUser
                             ? "bg-blue-600 text-white rounded-tr-md"
-                            : "bg-white border border-slate-200 rounded-tl-md"
+                            : isPhysician
+                              ? "bg-emerald-50 border border-emerald-200 rounded-tl-md"
+                              : "bg-white border border-slate-200 rounded-tl-md"
                         }`}
                       >
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">

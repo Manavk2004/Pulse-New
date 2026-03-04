@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Create a new chat session
 export const create = mutation({
@@ -231,7 +232,7 @@ export const escalateByThreadId = internalMutation({
     });
 
     // Create an escalation record
-    await ctx.db.insert("escalations", {
+    const escalationId = await ctx.db.insert("escalations", {
       chatId: chat._id,
       patientId: chat.patientId,
       physicianId: assigneeId,
@@ -239,6 +240,12 @@ export const escalateByThreadId = internalMutation({
       severity,
       status: "pending",
       createdAt: Date.now(),
+    });
+
+    // Schedule AI summary generation for the escalation
+    await ctx.scheduler.runAfter(0, internal.escalations.generateSummary, {
+      escalationId,
+      threadId: args.threadId,
     });
 
     return { escalated: true, chatId: chat._id };

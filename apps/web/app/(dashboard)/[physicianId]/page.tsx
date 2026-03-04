@@ -175,6 +175,11 @@ export default function DashboardPage() {
     convexUser ? { physicianId: convexUser._id } : "skip"
   );
 
+  const activeEscalationCount = useQuery(
+    api.escalations.countActiveByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
+
   useEffect(() => {
     if (!containerRef.current) return;
     const sections =
@@ -204,7 +209,7 @@ export default function DashboardPage() {
             Good morning, Doctor
           </h1>
           <p className="text-slate-500 mt-1">
-            You have 3 pending escalations and 5 upcoming appointments today.
+            You have {activeEscalationCount ?? "—"} pending escalation{activeEscalationCount === 1 ? "" : "s"} and 5 upcoming appointments today.
           </p>
         </div>
         <div className="flex gap-3">
@@ -239,12 +244,15 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col items-center gap-2">
             <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-3 py-1 rounded-full uppercase tracking-wider">
-              3 Active
+              {activeEscalationCount !== undefined ? activeEscalationCount : "—"} Active
             </span>
           </div>
-          <button className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-800 transition-all shrink-0">
+          <Link
+            href={`/${physicianId}/escalations`}
+            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-800 transition-all shrink-0"
+          >
             Review Now <ChevronRight size={18} />
-          </button>
+          </Link>
         </div>
       </section>
 

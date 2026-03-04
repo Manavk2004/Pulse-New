@@ -157,6 +157,7 @@ export default defineSchema({
       v.literal("acknowledged"),
       v.literal("resolved")
     ),
+    summary: v.optional(v.string()),
     createdAt: v.number(),
     acknowledgedAt: v.optional(v.number()),
     resolvedAt: v.optional(v.number()),
