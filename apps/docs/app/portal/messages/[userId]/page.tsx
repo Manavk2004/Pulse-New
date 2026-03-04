@@ -29,6 +29,23 @@ const quickPrompts = [
   { text: "I need urgent help", icon: Phone },
 ];
 
+type StatusFilter = "all" | "unresolved" | "escalated" | "resolved";
+
+const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
+  unresolved: { dot: "bg-blue-500", label: "Unresolved" },
+  escalated: { dot: "bg-amber-500", label: "Escalated" },
+  resolved: { dot: "bg-green-500", label: "Resolved" },
+};
+
+const DEFAULT_STATUS = { dot: "bg-slate-400", label: "Unknown" };
+
+const FILTER_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unresolved", label: "Unresolved" },
+  { value: "escalated", label: "Escalated" },
+  { value: "resolved", label: "Resolved" },
+];
+
 function MessagesPageInner() {
   const params = useParams();
   const router = useRouter();
@@ -47,6 +64,7 @@ function MessagesPageInner() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<StatusFilter>("all");
 
   // Sync URL thread param to state on browser back/forward navigation
   useEffect(() => {
@@ -73,11 +91,16 @@ function MessagesPageInner() {
   const messageCountAtSend = useRef(0);
 
   // Convex queries and mutations — skip if not authorized
-  const threadsResult = useQuery(
-    api.agent.threads.listThreads,
-    isAuthorized ? { userId } : "skip"
+  const chatsResult = useQuery(
+    api.chats.listByClerkUser,
+    isAuthorized
+      ? { clerkId: userId, status: activeFilter === "all" ? undefined : activeFilter }
+      : "skip"
   );
-  const threads = threadsResult?.page ?? [];
+  const chats = useMemo(
+    () => (chatsResult ?? []).filter((c) => c.threadId),
+    [chatsResult]
+  );
 
   const messagesResult = useQuery(
     api.agent.threads.getThreadMessages,
@@ -281,10 +304,27 @@ function MessagesPageInner() {
             <Plus size={16} />
             New Chat
           </button>
+
+          {/* Filter Tabs */}
+          <div className="flex gap-1.5 mt-3">
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveFilter(tab.value)}
+                className={`flex-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors ${
+                  activeFilter === tab.value
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {threads.length === 0 ? (
+          {chats.length === 0 ? (
             <div className="p-6 text-center">
               <MessageSquare className="mx-auto h-10 w-10 text-slate-300 mb-3" />
               <p className="text-sm text-slate-500">No conversations yet</p>
@@ -294,36 +334,42 @@ function MessagesPageInner() {
             </div>
           ) : (
             <div className="py-2">
-              {threads.map((thread) => (
+              {chats.map((chat) => (
                 <div
-                  key={thread._id}
+                  key={chat._id}
                   role="button"
                   tabIndex={0}
                   className={`group relative mx-2 mb-1 rounded-lg cursor-pointer transition-all ${
-                    activeThreadId === thread._id
+                    activeThreadId === chat.threadId
                       ? "bg-blue-50 border border-blue-200"
                       : "hover:bg-slate-50 border border-transparent"
                   }`}
-                  onClick={() => setActiveThreadId(thread._id)}
+                  onClick={() => chat.threadId && setActiveThreadId(chat.threadId)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setActiveThreadId(thread._id);
+                      chat.threadId && setActiveThreadId(chat.threadId);
                     }
                   }}
                 >
                   <div className="px-3 py-2.5">
-                    <p
-                      className={`text-sm font-medium truncate ${
-                        activeThreadId === thread._id
-                          ? "text-blue-700"
-                          : "text-slate-700"
-                      }`}
-                    >
-                      {thread.title ?? "New Chat"}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {new Date(thread._creationTime).toLocaleDateString(
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full shrink-0 ${(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).dot}`}
+                        title={(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).label}
+                      />
+                      <p
+                        className={`text-sm font-medium truncate ${
+                          activeThreadId === chat.threadId
+                            ? "text-blue-700"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {chat.title ?? "New Chat"}
+                      </p>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5 ml-3.5">
+                      {new Date(chat.createdAt).toLocaleDateString(
                         undefined,
                         {
                           month: "short",
@@ -337,9 +383,9 @@ function MessagesPageInner() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDeleteConfirmId(thread._id);
+                      if (chat.threadId) setDeleteConfirmId(chat.threadId);
                     }}
-                    aria-label={`Delete conversation: ${thread.title ?? "New Chat"}`}
+                    aria-label={`Delete conversation: ${chat.title ?? "New Chat"}`}
                     className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
                   >
                     <Trash2 size={14} />
@@ -383,7 +429,7 @@ function MessagesPageInner() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-blue-600" />
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {threads.find((t) => t._id === activeThreadId)?.title ??
+                  {chats.find((c) => c.threadId === activeThreadId)?.title ??
                     "New Chat"}
                 </h2>
               </div>

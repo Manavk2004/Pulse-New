@@ -99,8 +99,12 @@ export default defineSchema({
   // Chat sessions
   chats: defineTable({
     patientId: v.id("patients"),
+    title: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    userId: v.optional(v.id("users")),
+    organizationId: v.optional(v.id("organizations")),
     status: v.union(
-      v.literal("active"),
+      v.literal("unresolved"),
       v.literal("escalated"),
       v.literal("resolved")
     ),
@@ -111,8 +115,10 @@ export default defineSchema({
     .index("by_patientId", ["patientId"])
     .index("by_status", ["status"])
     .index("by_escalatedTo", ["escalatedTo"])
-    // Compound index for efficiently finding active chats per patient
-    .index("by_patientId_status", ["patientId", "status"]),
+    .index("by_patientId_status", ["patientId", "status"])
+    .index("by_threadId", ["threadId"])
+    .index("by_userId", ["userId"])
+    .index("by_userId_status", ["userId", "status"]),
 
   // Chat messages
   messages: defineTable({

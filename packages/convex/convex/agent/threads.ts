@@ -48,6 +48,24 @@ export const createThread = mutation({
   },
   handler: async (ctx, args) => {
     // TODO: Add server-side auth once ConvexProviderWithClerk is configured
+
+    // Validate user and patient exist BEFORE creating the thread
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.userId))
+      .unique();
+    if (!user) {
+      throw new Error("User not found. Please complete onboarding first.");
+    }
+
+    const patient = await ctx.db
+      .query("patients")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (!patient) {
+      throw new Error("Patient record not found. Please complete onboarding first.");
+    }
+
     const thread = await ctx.runMutation(
       components.agent.threads.createThread,
       {
@@ -55,6 +73,17 @@ export const createThread = mutation({
         title: args.title ?? "New Chat",
       }
     );
+
+    await ctx.db.insert("chats", {
+      patientId: patient._id,
+      userId: user._id,
+      organizationId: patient.organizationId,
+      threadId: thread._id,
+      title: args.title ?? "New Chat",
+      status: "unresolved",
+      createdAt: Date.now(),
+    });
+
     return thread._id;
   },
 });
@@ -106,5 +135,14 @@ export const deleteThread = mutation({
         threadId: args.threadId as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       }
     );
+
+    // Also delete the corresponding chats row
+    const chatRow = await ctx.db
+      .query("chats")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .unique();
+    if (chatRow) {
+      await ctx.db.delete(chatRow._id);
+    }
   },
 });

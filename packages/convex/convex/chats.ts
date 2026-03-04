@@ -9,7 +9,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     return await ctx.db.insert("chats", {
       patientId: args.patientId,
-      status: "active",
+      status: "unresolved",
       createdAt: Date.now(),
     });
   },
@@ -31,7 +31,7 @@ export const getOrCreateForPatient = mutation({
     // two calls both see "no active chat" and both try to create.
     const newChatId = await ctx.db.insert("chats", {
       patientId: args.patientId,
-      status: "active",
+      status: "unresolved",
       createdAt: now,
     });
 
@@ -40,7 +40,7 @@ export const getOrCreateForPatient = mutation({
     const allActiveChats = await ctx.db
       .query("chats")
       .withIndex("by_patientId_status", (q) =>
-        q.eq("patientId", args.patientId).eq("status", "active")
+        q.eq("patientId", args.patientId).eq("status", "unresolved")
       )
       .collect();
 
@@ -134,6 +134,39 @@ export const getMessages = query({
       .query("messages")
       .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
       .order("asc")
+      .collect();
+  },
+});
+
+// List chats for a user by their Clerk ID with optional status filter
+export const listByClerkUser = query({
+  args: {
+    clerkId: v.string(),
+    status: v.optional(
+      v.union(v.literal("unresolved"), v.literal("escalated"), v.literal("resolved"))
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+    if (!user) return [];
+
+    if (args.status) {
+      return await ctx.db
+        .query("chats")
+        .withIndex("by_userId_status", (q) =>
+          q.eq("userId", user._id).eq("status", args.status!)
+        )
+        .order("desc")
+        .collect();
+    }
+
+    return await ctx.db
+      .query("chats")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .order("desc")
       .collect();
   },
 });
