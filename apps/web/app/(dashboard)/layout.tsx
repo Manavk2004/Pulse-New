@@ -5,8 +5,11 @@ import { useRouter, usePathname, useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
 
-// DEV: hardcoded physician Clerk ID — bypasses Clerk auth
-const DEV_CLERK_ID = "user_38r6neCjAIGzEOdJF5l4P9Ay6cj";
+// DEV: hardcoded physician Clerk ID — bypasses Clerk auth (development only)
+const DEV_CLERK_ID =
+  process.env.NODE_ENV === "development"
+    ? "user_38r6neCjAIGzEOdJF5l4P9Ay6cj"
+    : null;
 import {
   Activity,
   LayoutDashboard,
@@ -185,9 +188,10 @@ export default function DashboardLayout({
   const physicianId = params.physicianId as string | undefined;
 
   // DEV: bypass Clerk — hardcode physician lookup
-  const convexUser = useQuery(api.users.getByClerkId, {
-    clerkId: DEV_CLERK_ID,
-  });
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    DEV_CLERK_ID ? { clerkId: DEV_CLERK_ID } : "skip"
+  );
   const physicianProfile = useQuery(
     api.physicians.getByUserId,
     convexUser ? { userId: convexUser._id } : "skip"

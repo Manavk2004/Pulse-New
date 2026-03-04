@@ -113,6 +113,32 @@ export const getEscalatedForPhysician = query({
   },
 });
 
+// List all chats assigned to a physician (any status), enriched with patient names
+export const listForPhysician = query({
+  args: { physicianId: v.id("users") },
+  handler: async (ctx, args) => {
+    const chats = await ctx.db
+      .query("chats")
+      .withIndex("by_escalatedTo", (q) => q.eq("escalatedTo", args.physicianId))
+      .order("desc")
+      .collect();
+
+    // Only include chats that have a threadId (valid agent threads)
+    const withThreads = chats.filter((c) => c.threadId);
+
+    // Enrich with patient names
+    return Promise.all(
+      withThreads.map(async (chat) => {
+        const patient = await ctx.db.get(chat.patientId);
+        const patientName = patient
+          ? `${patient.firstName} ${patient.lastName}`
+          : "Unknown Patient";
+        return { ...chat, patientName };
+      })
+    );
+  },
+});
+
 // Escalate chat
 export const escalate = mutation({
   args: {

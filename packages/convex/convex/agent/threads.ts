@@ -201,6 +201,61 @@ export const sendPhysicianMessage = mutation({
   },
 });
 
+// Create a new physician-initiated thread with a patient (no AI involvement)
+export const createPhysicianThread = mutation({
+  args: {
+    physicianUserId: v.id("users"),
+    patientId: v.id("patients"),
+  },
+  handler: async (ctx, args) => {
+    // Verify the physician exists and is assigned to this patient
+    const physicianProfile = await ctx.db
+      .query("physicians")
+      .withIndex("by_userId", (q) => q.eq("userId", args.physicianUserId))
+      .unique();
+    if (!physicianProfile) throw new Error("Physician profile not found.");
+
+    // Look up patient record
+    const patient = await ctx.db.get(args.patientId);
+    if (!patient) throw new Error("Patient not found.");
+
+    // Verify the physician is assigned to this patient
+    if (patient.assignedPhysicianId !== args.physicianUserId) {
+      throw new Error("Unauthorized: Physician is not assigned to this patient.");
+    }
+
+    // Look up patient's user record to get clerkId for thread creation
+    const patientUser = await ctx.db.get(patient.userId);
+    if (!patientUser) throw new Error("Patient user record not found.");
+
+    const title = `Dr. ${physicianProfile.firstName} ${physicianProfile.lastName}`;
+
+    // Create agent thread under patient's Clerk ID so patient sees it too
+    const thread = await ctx.runMutation(
+      components.agent.threads.createThread,
+      {
+        userId: patientUser.clerkId,
+        title,
+      }
+    );
+
+    // Create chat record
+    await ctx.db.insert("chats", {
+      patientId: args.patientId,
+      userId: patient.userId,
+      organizationId: patient.organizationId,
+      threadId: thread._id,
+      title,
+      status: "escalated",
+      escalatedAt: Date.now(),
+      escalatedTo: args.physicianUserId,
+      createdAt: Date.now(),
+    });
+
+    return thread._id;
+  },
+});
+
 // Delete a thread
 export const deleteThread = mutation({
   args: {

@@ -392,6 +392,9 @@ function MessagesPageInner() {
                         <span
                           className={`inline-block h-2 w-2 rounded-full shrink-0 ${(STATUS_CONFIG[chat.status] ?? DEFAULT_STATUS).dot}`}
                         />
+                        {chat.title?.startsWith("Dr.") ? (
+                          <Stethoscope className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        ) : null}
                         <p
                           className={`text-sm font-medium truncate ${
                             activeThreadId === chat.threadId
@@ -467,31 +470,37 @@ function MessagesPageInner() {
             {/* Thread Header */}
             <div className="px-6 py-3 border-b border-slate-200 bg-white">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-blue-600" />
+                {activeChat?.title?.startsWith("Dr.") ? (
+                  <Stethoscope className="h-5 w-5 text-emerald-600" />
+                ) : (
+                  <Sparkles className="h-5 w-5 text-blue-600" />
+                )}
                 <h2 className="text-sm font-semibold text-slate-800">
                   {activeChat?.title ?? "New Chat"}
                 </h2>
               </div>
             </div>
 
-            {/* Medical Disclaimer */}
-            <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 p-3">
-              <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-              <div className="text-xs">
-                <p className="font-medium text-slate-700">
-                  Medical Disclaimer
-                </p>
-                <p className="text-slate-500">
-                  This AI provides general health information only. For medical
-                  emergencies, call 911. Always consult your physician for
-                  medical advice.
-                </p>
+            {/* Medical Disclaimer — only for AI chats, not physician direct messages */}
+            {!activeChat?.title?.startsWith("Dr.") && (
+              <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 p-3">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-medium text-slate-700">
+                    Medical Disclaimer
+                  </p>
+                  <p className="text-slate-500">
+                    This AI provides general health information only. For medical
+                    emergencies, call 911. Always consult your physician for
+                    medical advice.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {messages.length === 0 && !isSending && (
+              {messages.length === 0 && !isSending && !activeChat?.title?.startsWith("Dr.") && (
                 <div className="mt-8">
                   <p className="text-xs text-slate-400 mb-3 text-center">
                     Suggested questions:
@@ -536,6 +545,17 @@ function MessagesPageInner() {
 
                   const isPhysician = !isUser && textContent.startsWith("**Dr.");
 
+                  // Strip the **Dr. Name:** prefix for clean display
+                  let displayText = textContent;
+                  let physicianName = "";
+                  if (isPhysician) {
+                    const match = textContent.match(/^\*\*Dr\.\s+(.+?):\*\*\s*/);
+                    if (match) {
+                      physicianName = `Dr. ${match[1]}`;
+                      displayText = textContent.slice(match[0].length);
+                    }
+                  }
+
                   return (
                     <div
                       key={`${msg.order}-${msg.stepOrder}`}
@@ -567,8 +587,13 @@ function MessagesPageInner() {
                               : "bg-white border border-slate-200 rounded-tl-md"
                         }`}
                       >
+                        {isPhysician && physicianName && (
+                          <p className="text-xs font-semibold text-emerald-700 mb-1">
+                            {physicianName}
+                          </p>
+                        )}
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                          {textContent}
+                          {displayText}
                         </p>
                       </div>
                     </div>
@@ -638,7 +663,7 @@ function MessagesPageInner() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Type your health question..."
+                    placeholder={activeChat?.title?.startsWith("Dr.") ? "Reply to your physician..." : "Type your health question..."}
                     aria-label="Message input"
                     rows={1}
                     className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"

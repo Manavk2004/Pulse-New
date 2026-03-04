@@ -452,6 +452,17 @@ export default function EscalationDetailPage() {
                 const isPhysician =
                   !isUser && textContent.startsWith("**Dr.");
 
+                // Strip the **Dr. Name:** prefix for clean display
+                let displayText = textContent;
+                let physicianLabel = "";
+                if (isPhysician) {
+                  const match = textContent.match(/^\*\*Dr\.\s+(.+?):\*\*\s*/);
+                  if (match) {
+                    physicianLabel = `Dr. ${match[1]}`;
+                    displayText = textContent.slice(match[0].length);
+                  }
+                }
+
                 return (
                   <div
                     key={`${msg.order}-${msg.stepOrder}`}
@@ -483,8 +494,13 @@ export default function EscalationDetailPage() {
                             : "bg-white border border-slate-200 text-slate-800 rounded-tl-md"
                       }`}
                     >
+                      {isPhysician && physicianLabel && (
+                        <p className="text-xs font-semibold text-emerald-700 mb-1">
+                          {physicianLabel}
+                        </p>
+                      )}
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                        {textContent}
+                        {displayText}
                       </p>
                     </div>
                   </div>
