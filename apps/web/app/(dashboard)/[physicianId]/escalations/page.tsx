@@ -27,7 +27,7 @@ type StatusFilter = "all" | "pending" | "acknowledged" | "resolved";
 
 const FILTER_TABS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
+  { value: "pending", label: "Unseen" },
   { value: "acknowledged", label: "Acknowledged" },
   { value: "resolved", label: "Resolved" },
 ];
@@ -42,22 +42,25 @@ const SEVERITY_CONFIG: Record<
   low: { bg: "bg-blue-50", text: "text-blue-700", icon: Shield },
 };
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> =
+const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string; label: string }> =
   {
     pending: {
       bg: "bg-amber-50",
       text: "text-amber-700",
       dot: "bg-amber-500",
+      label: "Unseen",
     },
     acknowledged: {
       bg: "bg-blue-50",
       text: "text-blue-700",
       dot: "bg-blue-500",
+      label: "Acknowledged",
     },
     resolved: {
       bg: "bg-green-50",
       text: "text-green-700",
       dot: "bg-green-500",
+      label: "Resolved",
     },
   };
 
@@ -268,8 +271,7 @@ export default function EscalationsPage() {
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`}
                       />
-                      {esc.status.charAt(0).toUpperCase() +
-                        esc.status.slice(1)}
+                      {statusConfig.label}
                     </span>
                   </div>
 

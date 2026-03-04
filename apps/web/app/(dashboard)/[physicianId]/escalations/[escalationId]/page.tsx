@@ -105,6 +105,15 @@ export default function EscalationDetailPage() {
 
   const selectedDoc = filteredDocs.find((d) => d._id === selectedDocId) ?? filteredDocs[0] ?? null;
 
+  // Auto-acknowledge when physician opens the escalation
+  const hasAutoAcked = useRef(false);
+  useEffect(() => {
+    if (detail && detail.status === "pending" && !hasAutoAcked.current) {
+      hasAutoAcked.current = true;
+      acknowledgeMutation({ escalationId: detail._id as any });
+    }
+  }, [detail, acknowledgeMutation]);
+
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -215,15 +224,6 @@ export default function EscalationDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          {detail.status === "pending" && (
-            <button
-              onClick={handleAcknowledge}
-              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors"
-            >
-              <CheckCircle2 size={14} />
-              Acknowledge
-            </button>
-          )}
           {!isResolved && (
             <button
               onClick={() => setResolveDialogOpen(true)}
@@ -402,8 +402,8 @@ export default function EscalationDetailPage() {
                         isUser
                           ? "bg-blue-600 text-white rounded-tr-md"
                           : isPhysician
-                            ? "bg-emerald-50 border border-emerald-200 rounded-tl-md"
-                            : "bg-white border border-slate-200 rounded-tl-md"
+                            ? "bg-emerald-50 border border-emerald-200 text-slate-800 rounded-tl-md"
+                            : "bg-white border border-slate-200 text-slate-800 rounded-tl-md"
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -440,7 +440,7 @@ export default function EscalationDetailPage() {
                   placeholder="Type a message to the patient..."
                   aria-label="Physician message input"
                   rows={1}
-                  className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all"
+                  className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all"
                   disabled={isSending}
                 />
                 <button

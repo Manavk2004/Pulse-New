@@ -109,18 +109,24 @@ export const sendMessage = action({
         tools: {
           escalateToPhysician: {
             description:
-              "Escalate the conversation to the patient's physician. Call this when the patient requests to speak with their doctor, expresses frustration, has concerns beyond AI scope, or describes serious/worsening symptoms.",
+              "Escalate the conversation to the patient's physician. Call this when the patient requests to speak with their doctor, expresses frustration, has concerns beyond AI scope, or describes serious/worsening symptoms. You MUST assess the clinical severity of the situation based on the full conversation context.",
             inputSchema: z.object({
               reason: z
                 .string()
                 .describe(
                   "A clear, concise summary of why this conversation is being escalated"
                 ),
+              severity: z
+                .enum(["low", "medium", "high", "urgent"])
+                .describe(
+                  "Clinical severity: 'urgent' = life-threatening or emergency (cancer concerns, chest pain, stroke symptoms, suicidal ideation, severe bleeding, seizures, difficulty breathing); 'high' = serious condition needing prompt attention (tumors, lumps, persistent vomiting blood, sudden weight loss, severe infections, allergic reactions); 'medium' = concerning but not immediately dangerous (worsening symptoms, new/unusual symptoms, medication side effects, persistent pain, fever); 'low' = general questions, routine follow-ups, patient simply wants to talk to doctor, frustration with AI"
+                ),
             }),
-            execute: async ({ reason }: { reason: string }) => {
+            execute: async ({ reason, severity }: { reason: string; severity: "low" | "medium" | "high" | "urgent" }) => {
               await ctx.runMutation(internal.chats.escalateByThreadId, {
                 threadId: args.threadId,
                 reason,
+                severity,
               });
               return { success: true, message: "Conversation has been escalated to the physician." };
             },

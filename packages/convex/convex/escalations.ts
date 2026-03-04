@@ -104,13 +104,22 @@ export const getByPhysician = query({
       escalations = escalations.filter((e) => e.status === args.status);
     }
 
-    // Enrich with patient info
-    return await Promise.all(
+    // Enrich with patient + chat info, and exclude escalations whose chat is already resolved
+    const enriched = await Promise.all(
       escalations.map(async (esc) => {
         const patient = await ctx.db.get(esc.patientId);
-        return { ...esc, patient };
+        const chat = await ctx.db.get(esc.chatId);
+        return { ...esc, patient, chat };
       })
     );
+
+    return enriched.filter((esc) => {
+      // Skip escalations with no associated chat or no threadId (legacy data)
+      if (!esc.chat?.threadId) return false;
+      // If the chat has been resolved but the escalation record wasn't updated, skip it
+      if (esc.chat.status === "resolved" && esc.status !== "resolved") return false;
+      return true;
+    });
   },
 });
 

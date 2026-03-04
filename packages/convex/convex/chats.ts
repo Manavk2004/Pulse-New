@@ -177,6 +177,12 @@ export const escalateByThreadId = internalMutation({
   args: {
     threadId: v.string(),
     reason: v.string(),
+    severity: v.optional(v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("urgent")
+    )),
   },
   handler: async (ctx, args) => {
     const chat = await ctx.db
@@ -209,19 +215,21 @@ export const escalateByThreadId = internalMutation({
       escalationReason = `[UNASSIGNED PATIENT] ${args.reason}`;
     }
 
-    // Determine severity from reason keywords
-    const lowerReason = args.reason.toLowerCase();
-    const urgentKeywords = ["chest pain", "heart attack", "stroke", "difficulty breathing", "severe bleeding", "unconscious", "suicide", "overdose"];
-    const highKeywords = ["severe pain", "high fever", "infection", "allergic reaction", "swelling", "vomiting blood"];
-    const mediumKeywords = ["persistent pain", "worsening", "medication concern", "new symptoms", "fever"];
+    // Use AI-determined severity if provided, otherwise fall back to keyword heuristic
+    let severity: "low" | "medium" | "high" | "urgent" = args.severity ?? "low";
+    if (!args.severity) {
+      const lowerReason = args.reason.toLowerCase();
+      const urgentKeywords = ["chest pain", "heart attack", "stroke", "difficulty breathing", "severe bleeding", "unconscious", "suicide", "overdose", "cancer", "tumor", "tumors", "seizure", "anaphylaxis", "not breathing"];
+      const highKeywords = ["severe pain", "high fever", "infection", "allergic reaction", "swelling", "vomiting blood", "lump", "lumps", "blood in stool", "blood in urine", "sudden weight loss", "persistent cough"];
+      const mediumKeywords = ["persistent pain", "worsening", "medication concern", "new symptoms", "fever", "dizziness", "numbness", "rash"];
 
-    let severity: "low" | "medium" | "high" | "urgent" = "low";
-    if (urgentKeywords.some((kw) => lowerReason.includes(kw))) {
-      severity = "urgent";
-    } else if (highKeywords.some((kw) => lowerReason.includes(kw))) {
-      severity = "high";
-    } else if (mediumKeywords.some((kw) => lowerReason.includes(kw))) {
-      severity = "medium";
+      if (urgentKeywords.some((kw) => lowerReason.includes(kw))) {
+        severity = "urgent";
+      } else if (highKeywords.some((kw) => lowerReason.includes(kw))) {
+        severity = "high";
+      } else if (mediumKeywords.some((kw) => lowerReason.includes(kw))) {
+        severity = "medium";
+      }
     }
 
     // Update chat status to escalated
