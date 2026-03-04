@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@repo/convex";
 import {
   Users,
   MessageSquare,
@@ -11,6 +15,7 @@ import {
   PlusCircle,
   Video,
   Activity,
+  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -22,6 +27,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import gsap from "gsap";
+
+// DEV: hardcoded physician Clerk ID — bypasses Clerk auth (development only)
+const DEV_CLERK_ID = process.env.NODE_ENV === "development"
+  ? "user_38r6neCjAIGzEOdJF5l4P9Ay6cj"
+  : null;
 
 /* ------------------------------------------------------------------ */
 /*  Mock Data                                                          */
@@ -81,37 +91,6 @@ const upcomingAppointments = [
   },
 ];
 
-const recentPatients = [
-  {
-    id: 1,
-    name: "Maria Rodriguez",
-    lastVisit: "Feb 28, 2026",
-    status: "Active",
-    condition: "Hypertension",
-  },
-  {
-    id: 2,
-    name: "James Thompson",
-    lastVisit: "Feb 27, 2026",
-    status: "Follow-up",
-    condition: "Diabetes Type 2",
-  },
-  {
-    id: 3,
-    name: "Emily Davis",
-    lastVisit: "Feb 26, 2026",
-    status: "New",
-    condition: "Anxiety Disorder",
-  },
-  {
-    id: 4,
-    name: "Robert Chen",
-    lastVisit: "Feb 25, 2026",
-    status: "Active",
-    condition: "Chronic Pain",
-  },
-];
-
 /* ------------------------------------------------------------------ */
 /*  MetricCard                                                         */
 /* ------------------------------------------------------------------ */
@@ -165,8 +144,7 @@ function MetricCard({
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     Active: "bg-emerald-50 text-emerald-700",
-    "Follow-up": "bg-blue-50 text-blue-700",
-    New: "bg-amber-50 text-amber-700",
+    Pending: "bg-amber-50 text-amber-700",
   };
   return (
     <span
@@ -182,8 +160,20 @@ function StatusBadge({ status }: { status: string }) {
 /* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
+  const params = useParams();
+  const physicianId = params.physicianId as string;
   const containerRef = useRef<HTMLDivElement>(null);
   const [timeRange, setTimeRange] = useState("This Week");
+
+  // Fetch real patients from Convex
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    DEV_CLERK_ID ? { clerkId: DEV_CLERK_ID } : "skip"
+  );
+  const patients = useQuery(
+    api.patients.getByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -461,9 +451,12 @@ export default function DashboardPage() {
               Recently active patients
             </p>
           </div>
-          <button className="text-sm text-blue-600 font-semibold hover:text-blue-700 transition-colors flex items-center gap-1">
+          <Link
+            href={`/${physicianId}/patients`}
+            className="text-sm text-blue-600 font-semibold hover:text-blue-700 transition-colors flex items-center gap-1"
+          >
             View All Patients <ChevronRight size={16} />
-          </button>
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -487,40 +480,59 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {recentPatients.map((patient) => (
-                <tr
-                  key={patient.id}
-                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
-                >
-                  <td className="py-4 pr-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
-                        {patient.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </div>
-                      <span className="font-semibold text-sm text-slate-800">
-                        {patient.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-4 pr-4 text-sm text-slate-600 hidden sm:table-cell">
-                    {patient.condition}
-                  </td>
-                  <td className="py-4 pr-4 text-sm text-slate-500 hidden md:table-cell">
-                    {patient.lastVisit}
-                  </td>
-                  <td className="py-4 pr-4">
-                    <StatusBadge status={patient.status} />
-                  </td>
-                  <td className="py-4 text-right">
-                    <button className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
-                      View
-                    </button>
+              {patients === undefined ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
                   </td>
                 </tr>
-              ))}
+              ) : patients.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-sm text-slate-500">
+                    No patients yet
+                  </td>
+                </tr>
+              ) : (
+                patients.map((patient) => {
+                  const name = `${patient.firstName} ${patient.lastName}`;
+                  const initials = `${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`;
+                  const status = patient.consentStatus === "granted" ? "Active" : "Pending";
+                  return (
+                    <tr
+                      key={patient._id}
+                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+                    >
+                      <td className="py-4 pr-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                            {initials}
+                          </div>
+                          <span className="font-semibold text-sm text-slate-800">
+                            {name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 pr-4 text-sm text-slate-600 hidden sm:table-cell">
+                        —
+                      </td>
+                      <td className="py-4 pr-4 text-sm text-slate-500 hidden md:table-cell">
+                        —
+                      </td>
+                      <td className="py-4 pr-4">
+                        <StatusBadge status={status} />
+                      </td>
+                      <td className="py-4 text-right">
+                        <Link
+                          href={`/${physicianId}/patients`}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
