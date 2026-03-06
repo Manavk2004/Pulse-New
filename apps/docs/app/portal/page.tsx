@@ -562,7 +562,7 @@ export default function PortalPage() {
       <motion.section
         whileHover={{ scale: 1.01 }}
         className="bg-white border border-blue-100 rounded-3xl p-6 shadow-sm overflow-hidden relative cursor-pointer"
-        onClick={() => setChatOpen(true)}
+        onClick={() => router.push("/portal/ai-room")}
       >
         <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-50/50 -skew-x-12 translate-x-12 z-0"></div>
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">

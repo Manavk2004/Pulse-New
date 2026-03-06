@@ -16,6 +16,7 @@ import type * as auditLog from "../auditLog.js";
 import type * as availabilitySlots from "../availabilitySlots.js";
 import type * as chats from "../chats.js";
 import type * as connectionRequests from "../connectionRequests.js";
+import type * as documentAnalysis from "../documentAnalysis.js";
 import type * as documents from "../documents.js";
 import type * as escalations from "../escalations.js";
 import type * as network from "../network.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   availabilitySlots: typeof availabilitySlots;
   chats: typeof chats;
   connectionRequests: typeof connectionRequests;
+  documentAnalysis: typeof documentAnalysis;
   documents: typeof documents;
   escalations: typeof escalations;
   network: typeof network;
