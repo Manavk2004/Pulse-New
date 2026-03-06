@@ -38,6 +38,16 @@ export default defineSchema({
       v.literal("revoked")
     ),
     consentTimestamp: v.optional(v.number()),
+    healthOverview: v.optional(v.string()),
+    healthOverviewUpdatedAt: v.optional(v.number()),
+    medications: v.optional(v.array(v.object({ name: v.string(), dosage: v.optional(v.string()) }))),
+    allergies: v.optional(v.array(v.object({ allergen: v.string(), type: v.optional(v.union(v.literal("drug"), v.literal("food"), v.literal("environmental"), v.literal("other"))) }))),
+    conditions: v.optional(v.array(v.object({ name: v.string(), status: v.optional(v.union(v.literal("active"), v.literal("resolved"), v.literal("chronic"))) }))),
+    sex: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    bloodType: v.optional(v.union(v.literal("A+"), v.literal("A-"), v.literal("B+"), v.literal("B-"), v.literal("AB+"), v.literal("AB-"), v.literal("O+"), v.literal("O-"))),
+    procedures: v.optional(v.array(v.object({ name: v.string(), date: v.optional(v.string()) }))),
+    insurance: v.optional(v.object({ planName: v.optional(v.string()), provider: v.optional(v.string()), memberId: v.optional(v.string()) })),
+    profileFieldsUpdatedAt: v.optional(v.number()),
   })
     .index("by_userId", ["userId"])
     .index("by_assignedPhysician", ["assignedPhysicianId"])
@@ -100,10 +110,13 @@ export default defineSchema({
       )
     ),
     embedding: v.optional(v.array(v.float64())),
+    reviewStatus: v.optional(v.union(v.literal("pendingReview"), v.literal("approved"), v.literal("rejected"))),
+    uploadedByRole: v.optional(v.union(v.literal("patient"), v.literal("physician"))),
   })
     .index("by_patientId", ["patientId"])
     .index("by_uploadedBy", ["uploadedBy"])
-    .index("by_category", ["category"]),
+    .index("by_category", ["category"])
+    .index("by_patientId_reviewStatus", ["patientId", "reviewStatus"]),
 
   // Chat sessions
   chats: defineTable({
@@ -248,6 +261,21 @@ export default defineSchema({
     .index("by_patient", ["patientId"])
     .index("by_physician", ["physicianId"])
     .index("by_physician_date", ["physicianId", "date"]),
+
+  // Vitals extracted from medical documents
+  vitals: defineTable({
+    patientId: v.id("patients"),
+    documentId: v.id("documents"),
+    heartRate: v.optional(v.number()),
+    systolicBP: v.optional(v.number()),
+    diastolicBP: v.optional(v.number()),
+    glucoseLevel: v.optional(v.number()),
+    bodyTemperature: v.optional(v.number()),
+    extractedAt: v.number(),
+  })
+    .index("by_patientId", ["patientId"])
+    .index("by_patientId_extractedAt", ["patientId", "extractedAt"])
+    .index("by_documentId", ["documentId"]),
 
   // Knowledge base for RAG
   knowledgeBase: defineTable({

@@ -188,6 +188,46 @@ export const hidePatient = mutation({
   },
 });
 
+// Update health overview (patient-editable profile summary)
+export const updateHealthOverview = mutation({
+  args: {
+    patientId: v.id("patients"),
+    healthOverview: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.patientId, {
+      healthOverview: args.healthOverview,
+      healthOverviewUpdatedAt: Date.now(),
+    });
+  },
+});
+
+// Update patient medical profile fields
+export const updateProfileFields = mutation({
+  args: {
+    patientId: v.id("patients"),
+    medications: v.optional(v.array(v.object({ name: v.string(), dosage: v.optional(v.string()) }))),
+    allergies: v.optional(v.array(v.object({ allergen: v.string(), type: v.optional(v.union(v.literal("drug"), v.literal("food"), v.literal("environmental"), v.literal("other"))) }))),
+    conditions: v.optional(v.array(v.object({ name: v.string(), status: v.optional(v.union(v.literal("active"), v.literal("resolved"), v.literal("chronic"))) }))),
+    sex: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    bloodType: v.optional(v.union(v.literal("A+"), v.literal("A-"), v.literal("B+"), v.literal("B-"), v.literal("AB+"), v.literal("AB-"), v.literal("O+"), v.literal("O-"))),
+    procedures: v.optional(v.array(v.object({ name: v.string(), date: v.optional(v.string()) }))),
+    insurance: v.optional(v.object({ planName: v.optional(v.string()), provider: v.optional(v.string()), memberId: v.optional(v.string()) })),
+    emergencyContact: v.optional(v.object({ name: v.string(), relationship: v.string(), phoneNumber: v.string() })),
+  },
+  handler: async (ctx, args) => {
+    const { patientId, ...fields } = args;
+    const updates: Record<string, any> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) updates[key] = value;
+    }
+    if (Object.keys(updates).length > 0) {
+      updates.profileFieldsUpdatedAt = Date.now();
+      await ctx.db.patch(patientId, updates);
+    }
+  },
+});
+
 // Search patients by name
 export const search = query({
   args: { query: v.string() },

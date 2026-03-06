@@ -198,7 +198,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const docs = documents ?? [];
+  const docs = (documents ?? []).filter((doc: any) => doc.reviewStatus !== "pendingReview");
 
   const filteredDocuments = docs.filter((doc) => {
     const matchesSearch = doc.fileName

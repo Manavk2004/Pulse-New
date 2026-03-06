@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "convex/react";
@@ -33,63 +33,7 @@ const DEV_CLERK_ID = process.env.NODE_ENV === "development"
   ? "user_38r6neCjAIGzEOdJF5l4P9Ay6cj"
   : null;
 
-/* ------------------------------------------------------------------ */
-/*  Mock Data                                                          */
-/* ------------------------------------------------------------------ */
-
-const consultationDataByRange: Record<string, { day: string; consultations: number; followUps: number }[]> = {
-  "This Week": [
-    { day: "Mon", consultations: 12, followUps: 4 },
-    { day: "Tue", consultations: 18, followUps: 7 },
-    { day: "Wed", consultations: 15, followUps: 5 },
-    { day: "Thu", consultations: 22, followUps: 9 },
-    { day: "Fri", consultations: 20, followUps: 8 },
-    { day: "Sat", consultations: 8, followUps: 3 },
-    { day: "Sun", consultations: 5, followUps: 2 },
-  ],
-  "Last Week": [
-    { day: "Mon", consultations: 10, followUps: 3 },
-    { day: "Tue", consultations: 14, followUps: 5 },
-    { day: "Wed", consultations: 19, followUps: 8 },
-    { day: "Thu", consultations: 16, followUps: 6 },
-    { day: "Fri", consultations: 21, followUps: 10 },
-    { day: "Sat", consultations: 7, followUps: 2 },
-    { day: "Sun", consultations: 4, followUps: 1 },
-  ],
-  "This Month": [
-    { day: "Wk 1", consultations: 68, followUps: 22 },
-    { day: "Wk 2", consultations: 75, followUps: 28 },
-    { day: "Wk 3", consultations: 82, followUps: 31 },
-    { day: "Wk 4", consultations: 71, followUps: 25 },
-  ],
-};
-
-const upcomingAppointments = [
-  {
-    id: 1,
-    patient: "Maria Rodriguez",
-    time: "09:30 AM",
-    type: "Follow-up",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-  },
-  {
-    id: 2,
-    patient: "James Thompson",
-    time: "10:15 AM",
-    type: "New Consultation",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-  },
-  {
-    id: 3,
-    patient: "Emily Davis",
-    time: "11:00 AM",
-    type: "Lab Review",
-    avatar:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
-  },
-];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /* ------------------------------------------------------------------ */
 /*  MetricCard                                                         */
@@ -99,13 +43,11 @@ function MetricCard({
   title,
   value,
   icon: Icon,
-  trend,
   color,
 }: {
   title: string;
   value: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  trend: number;
   color: string;
 }) {
   return (
@@ -114,18 +56,6 @@ function MetricCard({
         <div className={`p-2 rounded-lg ${color}`}>
           <Icon size={20} className="text-white" />
         </div>
-        <span
-          className={`text-xs font-medium px-2 py-1 rounded-full ${
-            trend > 0
-              ? "bg-emerald-50 text-emerald-600"
-              : trend < 0
-                ? "bg-rose-50 text-rose-600"
-                : "bg-slate-50 text-slate-600"
-          }`}
-        >
-          {trend > 0 ? "+" : ""}
-          {trend}%
-        </span>
       </div>
       <div className="mt-4">
         <p className="text-slate-500 text-sm font-medium">{title}</p>
@@ -156,6 +86,27 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function getStartOfWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getStartOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function formatTodayISO(): string {
+  const d = new Date();
+  return d.toISOString().split("T")[0]!;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -165,7 +116,7 @@ export default function DashboardPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [timeRange, setTimeRange] = useState("This Week");
 
-  // Fetch real patients from Convex
+  // ---------- Convex queries ----------
   const convexUser = useQuery(
     api.users.getByClerkId,
     DEV_CLERK_ID ? { clerkId: DEV_CLERK_ID } : "skip"
@@ -174,12 +125,135 @@ export default function DashboardPage() {
     api.patients.getByPhysician,
     convexUser ? { physicianId: convexUser._id } : "skip"
   );
-
   const activeEscalationCount = useQuery(
     api.escalations.countActiveByPhysician,
     convexUser ? { physicianId: convexUser._id } : "skip"
   );
+  const appointments = useQuery(
+    api.appointments.getByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
+  const chats = useQuery(
+    api.chats.listForPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
+  const documentCount = useQuery(
+    api.documents.countDocumentsByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
+  const escalations = useQuery(
+    api.escalations.getByPhysician,
+    convexUser ? { physicianId: convexUser._id } : "skip"
+  );
 
+  // ---------- Derived data ----------
+  const todayISO = formatTodayISO();
+
+  const todayAppointmentCount = useMemo(() => {
+    if (!appointments) return 0;
+    return appointments.filter(
+      (a) => a.status === "scheduled" && a.date === todayISO
+    ).length;
+  }, [appointments, todayISO]);
+
+  // Upcoming appointments: scheduled, date >= today, sorted ascending, first 3
+  const upcomingAppointments = useMemo(() => {
+    if (!appointments) return [];
+    return appointments
+      .filter((a) => a.status === "scheduled" && a.date >= todayISO)
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return a.startTime < b.startTime ? -1 : 1;
+      })
+      .slice(0, 3);
+  }, [appointments, todayISO]);
+
+  // Escalated chats for the messages box
+  const escalatedChats = useMemo(() => {
+    if (!chats) return [];
+    return chats.filter((c) => c.status === "escalated");
+  }, [chats]);
+
+  // Chart data: appointments + escalations grouped by day
+  const chartData = useMemo(() => {
+    const now = new Date();
+    let rangeStart: Date;
+    let isMonthly = false;
+
+    if (timeRange === "Last Week") {
+      const thisWeekStart = getStartOfWeek(now);
+      rangeStart = new Date(thisWeekStart);
+      rangeStart.setDate(rangeStart.getDate() - 7);
+    } else if (timeRange === "This Month") {
+      rangeStart = getStartOfMonth(now);
+      isMonthly = true;
+    } else {
+      // This Week
+      rangeStart = getStartOfWeek(now);
+    }
+
+    if (!isMonthly) {
+      // 7-day view
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(rangeStart);
+        d.setDate(d.getDate() + i);
+        return d;
+      });
+
+      return days.map((d) => {
+        const iso = d.toISOString().split("T")[0]!;
+        const apptCount = appointments
+          ? appointments.filter((a) => a.date === iso).length
+          : 0;
+        const escCount = escalations
+          ? escalations.filter((e) => {
+              const eDate = new Date(e.createdAt).toISOString().split("T")[0];
+              return eDate === iso;
+            }).length
+          : 0;
+        return {
+          day: DAY_LABELS[d.getDay()]!,
+          appointments: apptCount,
+          escalations: escCount,
+        };
+      });
+    } else {
+      // Weekly buckets for the month
+      const weeks: { label: string; start: Date; end: Date }[] = [];
+      let weekStart = new Date(rangeStart);
+      let weekNum = 1;
+      while (weekStart <= now && weekNum <= 5) {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        weeks.push({ label: `Wk ${weekNum}`, start: new Date(weekStart), end: weekEnd });
+        weekStart.setDate(weekStart.getDate() + 7);
+        weekNum++;
+      }
+
+      return weeks.map((w) => {
+        const startISO = w.start.toISOString().split("T")[0]!;
+        const endISO = w.end.toISOString().split("T")[0]!;
+        const apptCount = appointments
+          ? appointments.filter(
+              (a) => a.date >= startISO && a.date <= endISO
+            ).length
+          : 0;
+        const escCount = escalations
+          ? escalations.filter((e) => {
+              const eDate = new Date(e.createdAt).toISOString().split("T")[0]!;
+              return eDate >= startISO && eDate <= endISO;
+            }).length
+          : 0;
+        return {
+          day: w.label,
+          appointments: apptCount,
+          escalations: escCount,
+        };
+      });
+    }
+  }, [timeRange, appointments, escalations]);
+
+  // ---------- GSAP animation ----------
   useEffect(() => {
     if (!containerRef.current) return;
     const sections =
@@ -209,7 +283,8 @@ export default function DashboardPage() {
             Good morning, Doctor
           </h1>
           <p className="text-slate-500 mt-1">
-            You have {activeEscalationCount ?? "—"} pending escalation{activeEscalationCount === 1 ? "" : "s"} and 5 upcoming appointments today.
+            You have {activeEscalationCount ?? "—"} pending escalation{activeEscalationCount === 1 ? "" : "s"} and{" "}
+            {todayAppointmentCount} upcoming appointment{todayAppointmentCount === 1 ? "" : "s"} today.
           </p>
         </div>
         <div className="flex gap-3">
@@ -260,30 +335,26 @@ export default function DashboardPage() {
       <section data-animate className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Patients"
-          value="1,248"
+          value={String(patients?.length ?? 0)}
           icon={Users}
-          trend={+12.5}
           color="bg-teal-500"
         />
         <MetricCard
           title="Active Chats"
-          value="36"
+          value={String(chats?.length ?? 0)}
           icon={MessageSquare}
-          trend={+8.2}
           color="bg-blue-500"
         />
         <MetricCard
           title="Pending Escalations"
-          value="3"
+          value={String(activeEscalationCount ?? 0)}
           icon={AlertTriangle}
-          trend={-15.3}
           color="bg-rose-500"
         />
         <MetricCard
           title="Documents to Review"
-          value="12"
+          value={String(documentCount ?? 0)}
           icon={FileText}
-          trend={+3.1}
           color="bg-amber-500"
         />
       </section>
@@ -298,7 +369,7 @@ export default function DashboardPage() {
                 Patient Activity
               </h3>
               <p className="text-sm text-slate-500">
-                Consultations & follow-ups this week
+                Appointments &amp; escalations overview
               </p>
             </div>
             <select
@@ -313,10 +384,10 @@ export default function DashboardPage() {
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={consultationDataByRange[timeRange] ?? consultationDataByRange["This Week"]}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient
-                    id="colorConsultations"
+                    id="colorAppointments"
                     x1="0"
                     y1="0"
                     x2="0"
@@ -326,14 +397,14 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient
-                    id="colorFollowUps"
+                    id="colorEscalations"
                     x1="0"
                     y1="0"
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -351,6 +422,7 @@ export default function DashboardPage() {
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  allowDecimals={false}
                 />
                 <Tooltip
                   contentStyle={{
@@ -361,19 +433,19 @@ export default function DashboardPage() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="consultations"
+                  dataKey="appointments"
                   stroke="#3b82f6"
                   strokeWidth={3}
                   fillOpacity={1}
-                  fill="url(#colorConsultations)"
+                  fill="url(#colorAppointments)"
                 />
                 <Area
                   type="monotone"
-                  dataKey="followUps"
-                  stroke="#14b8a6"
+                  dataKey="escalations"
+                  stroke="#f43f5e"
                   strokeWidth={3}
                   fillOpacity={1}
-                  fill="url(#colorFollowUps)"
+                  fill="url(#colorEscalations)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -388,65 +460,87 @@ export default function DashboardPage() {
               Upcoming Appointments
             </h3>
             <div className="space-y-4">
-              {upcomingAppointments.map((apt) => (
-                <div
-                  key={apt.id}
-                  className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100"
-                >
-                  <img
-                    src={apt.avatar}
-                    alt={apt.patient}
-                    className="w-12 h-12 rounded-xl object-cover"
-                  />
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-slate-800">
-                      {apt.patient}
-                    </h4>
-                    <p className="text-xs text-slate-500 font-medium">
-                      {apt.type}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-bold bg-blue-50 w-fit px-2 py-0.5 rounded-full uppercase">
-                      <Clock size={10} />
-                      {apt.time}
+              {upcomingAppointments.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4">
+                  No upcoming appointments
+                </p>
+              ) : (
+                upcomingAppointments.map((apt) => {
+                  const patientName = apt.patient
+                    ? `${apt.patient.firstName} ${apt.patient.lastName}`
+                    : "Unknown";
+                  const initials = apt.patient
+                    ? `${apt.patient.firstName?.[0] ?? ""}${apt.patient.lastName?.[0] ?? ""}`
+                    : "?";
+                  return (
+                    <div
+                      key={apt._id}
+                      className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                        {initials}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-slate-800">
+                          {patientName}
+                        </h4>
+                        <p className="text-xs text-slate-500 font-medium">
+                          {apt.reason ?? "Appointment"}
+                        </p>
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-bold bg-blue-50 w-fit px-2 py-0.5 rounded-full uppercase">
+                          <Clock size={10} />
+                          {apt.startTime} &middot; {apt.date}
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300" />
                     </div>
-                  </div>
-                  <ChevronRight size={16} className="text-slate-300" />
-                </div>
-              ))}
+                  );
+                })
+              )}
             </div>
-            <button className="w-full mt-6 py-3 text-slate-500 font-semibold text-sm border-t border-slate-100 hover:text-blue-600 transition-colors">
+            <Link
+              href={`/${physicianId}/appointments`}
+              className="block w-full mt-6 py-3 text-slate-500 font-semibold text-sm border-t border-slate-100 hover:text-blue-600 transition-colors text-center"
+            >
               View All Appointments
-            </button>
+            </Link>
           </div>
 
           {/* New Messages */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 text-white relative overflow-hidden">
+          <Link
+            href={`/${physicianId}/messages`}
+            className="block bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 text-white relative overflow-hidden hover:scale-[1.01] transition-transform duration-200"
+          >
             <div className="absolute bottom-0 right-0 opacity-10">
               <Activity size={120} />
             </div>
-            <h3 className="text-lg font-bold mb-2">New Messages</h3>
+            <h3 className="text-lg font-bold mb-2">Escalated Chats</h3>
             <p className="text-slate-400 text-sm mb-6">
-              You have 8 unread messages from patients and staff.
+              You have {escalatedChats.length} escalated chat{escalatedChats.length === 1 ? "" : "s"} requiring attention.
             </p>
             <div className="flex items-center gap-2">
               <div className="flex -space-x-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="w-10 h-10 rounded-full border-2 border-slate-800 bg-slate-700 overflow-hidden"
-                  >
-                    <img
-                      src={`https://i.pravatar.cc/100?u=msg${i}`}
-                      alt="sender"
-                    />
-                  </div>
-                ))}
+                {escalatedChats.slice(0, 4).map((chat) => {
+                  const initials = chat.patientName
+                    ? chat.patientName.split(" ").map((n: string) => n[0]).join("").slice(0, 2)
+                    : "?";
+                  return (
+                    <div
+                      key={chat._id}
+                      className="w-10 h-10 rounded-full border-2 border-slate-800 bg-slate-600 flex items-center justify-center text-white text-xs font-bold"
+                    >
+                      {initials}
+                    </div>
+                  );
+                })}
               </div>
-              <span className="text-xs font-medium text-slate-300">
-                +4 more
-              </span>
+              {escalatedChats.length > 4 && (
+                <span className="text-xs font-medium text-slate-300">
+                  +{escalatedChats.length - 4} more
+                </span>
+              )}
             </div>
-          </div>
+          </Link>
         </div>
       </div>
 
@@ -521,7 +615,13 @@ export default function DashboardPage() {
                         </div>
                       </td>
                       <td className="py-4 pr-4 text-sm text-slate-600 hidden sm:table-cell">
-                        —
+                        {(patient as any).conditions?.length > 0
+                          ? ((patient as any).conditions as any[])
+                              .filter((c: any) => c.status !== "resolved")
+                              .slice(0, 2)
+                              .map((c: any) => c.name)
+                              .join(", ") || "—"
+                          : "—"}
                       </td>
                       <td className="py-4 pr-4 text-sm text-slate-500 hidden md:table-cell">
                         —

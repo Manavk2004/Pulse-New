@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex";
 
@@ -22,11 +22,6 @@ import {
   Loader2,
   Check,
   UserPlus,
-  Calendar,
-  Building,
-  Link2,
-  Trash2,
-  X,
 } from "lucide-react";
 import gsap from "gsap";
 
@@ -57,6 +52,17 @@ const HIDDEN_FIELDS = new Set([
   "organizationId",
   "emergencyContact",
   "connected",
+  "showPatient",
+  "healthOverview",
+  "healthOverviewUpdatedAt",
+  "medications",
+  "allergies",
+  "conditions",
+  "sex",
+  "bloodType",
+  "procedures",
+  "insurance",
+  "profileFieldsUpdatedAt",
 ]);
 
 function formatFieldName(key: string): string {
@@ -360,202 +366,6 @@ function AddPatientDialog({
   );
 }
 
-function PatientDetailDialog({
-  patient,
-  open,
-  onOpenChange,
-}: {
-  patient: PatientRecord | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const hidePatient = useMutation(api.patients.hidePatient);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-
-  if (!open || !patient) return null;
-
-  const fullName = [patient.firstName, patient.lastName]
-    .filter(Boolean)
-    .join(" ");
-
-  const initials = [patient.firstName?.[0], patient.lastName?.[0]]
-    .filter(Boolean)
-    .join("")
-    .toUpperCase();
-
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    setDeleting(true);
-    setDeleteError("");
-    try {
-      await hidePatient({ patientId: patient._id as any });
-      setConfirmDelete(false);
-      onOpenChange(false);
-    } catch (err) {
-      setDeleting(false);
-      setConfirmDelete(false);
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete patient.");
-    }
-  };
-
-  const handleClose = () => {
-    setConfirmDelete(false);
-    setDeleting(false);
-    setDeleteError("");
-    onOpenChange(false);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[9999]">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[80vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5 border-b border-slate-100">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-200">
-              {initials || "?"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-bold text-slate-800 truncate">
-                {fullName || "Unknown Patient"}
-              </h2>
-              {patient.email && (
-                <p className="text-sm text-slate-500 truncate">{patient.email}</p>
-              )}
-            </div>
-            <button
-              onClick={handleClose}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-white transition-colors"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {patient.email && (
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Mail size={16} className="text-blue-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400 font-medium">Email</p>
-                <p className="text-sm font-semibold text-slate-700 truncate">
-                  {String(patient.email)}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {patient.phoneNumber && (
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
-                <Phone size={16} className="text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400 font-medium">Phone</p>
-                <p className="text-sm font-semibold text-slate-700 truncate">
-                  {String(patient.phoneNumber)}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {patient.dateOfBirth && (
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center">
-                <Calendar size={16} className="text-purple-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400 font-medium">Date of Birth</p>
-                <p className="text-sm font-semibold text-slate-700 truncate">
-                  {String(patient.dateOfBirth)}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center">
-              <Shield size={16} className="text-teal-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-400 font-medium">Consent Status</p>
-              <p className="text-sm font-semibold text-slate-700 capitalize">
-                {patient.consentStatus ?? "Unknown"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <Link2 size={16} className="text-emerald-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-400 font-medium">Connected</p>
-              <p className="text-sm font-semibold text-slate-700">
-                {(patient as any).connected ? "Yes" : "No"}
-              </p>
-            </div>
-          </div>
-
-          {(patient as any).organizationId && (
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center">
-                <Building size={16} className="text-indigo-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400 font-medium">Organization</p>
-                <p className="text-sm font-semibold text-slate-700 truncate">
-                  {String((patient as any).organizationId)}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 space-y-3">
-          {deleteError && (
-            <p className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
-              {deleteError}
-            </p>
-          )}
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all ${
-              confirmDelete
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
-            } disabled:opacity-50`}
-          >
-            {deleting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Trash2 size={16} />
-            )}
-            {deleting
-              ? "Deleting..."
-              : confirmDelete
-                ? "Confirm Delete?"
-                : "Delete Patient"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PatientsPage() {
   const params = useParams();
   const physicianId = params.physicianId as string;
@@ -568,9 +378,9 @@ export default function PatientsPage() {
     api.patients.getByPhysician,
     convexUser ? { physicianId: convexUser._id } : "skip"
   ) as PatientRecord[] | undefined;
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -706,7 +516,7 @@ export default function PatientsPage() {
             <PatientCard
               key={patient._id}
               patient={patient}
-              onViewProfile={() => setSelectedPatient(patient)}
+              onViewProfile={() => router.push(`/${physicianId}/patients/${patient._id}`)}
             />
           ))}
         </section>
@@ -735,13 +545,6 @@ export default function PatientsPage() {
         physicianUserId={convexUser?._id}
       />
 
-      <PatientDetailDialog
-        patient={selectedPatient}
-        open={selectedPatient !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedPatient(null);
-        }}
-      />
     </div>
   );
 }

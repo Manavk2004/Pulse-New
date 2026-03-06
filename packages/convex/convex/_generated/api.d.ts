@@ -23,6 +23,7 @@ import type * as patients from "../patients.js";
 import type * as physicians from "../physicians.js";
 import type * as user from "../user.js";
 import type * as users from "../users.js";
+import type * as vitals from "../vitals.js";
 
 import type {
   ApiFromModules,
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   physicians: typeof physicians;
   user: typeof user;
   users: typeof users;
+  vitals: typeof vitals;
 }>;
 
 /**
