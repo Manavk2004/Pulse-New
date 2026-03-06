@@ -16,6 +16,9 @@
     "./schema": {
       "import": "./convex/schema.ts",
       "types": "./convex/schema.ts"
+    },
+    "./convex/_generated/dataModel": {
+      "types": "./convex/_generated/dataModel.d.ts"
     }
   },
   "scripts": {

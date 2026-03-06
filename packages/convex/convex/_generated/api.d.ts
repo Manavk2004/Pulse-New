@@ -22,6 +22,7 @@ import type * as network from "../network.js";
 import type * as organizations from "../organizations.js";
 import type * as patients from "../patients.js";
 import type * as physicians from "../physicians.js";
+import type * as seedPhysicians from "../seedPhysicians.js";
 import type * as user from "../user.js";
 import type * as users from "../users.js";
 import type * as vitals from "../vitals.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   patients: typeof patients;
   physicians: typeof physicians;
+  seedPhysicians: typeof seedPhysicians;
   user: typeof user;
   users: typeof users;
   vitals: typeof vitals;

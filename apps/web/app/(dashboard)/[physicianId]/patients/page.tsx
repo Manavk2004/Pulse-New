@@ -63,6 +63,20 @@ const HIDDEN_FIELDS = new Set([
   "procedures",
   "insurance",
   "profileFieldsUpdatedAt",
+  "healthTips",
+  "healthTipsUpdatedAt",
+  "profilePhotoStorageId",
+  "bannerPhotoStorageId",
+  "cardVisibleFields",
+  "cardBio",
+  "about",
+  "familyHistory",
+  "smokingStatus",
+  "alcoholUse",
+  "exerciseFrequency",
+  "occupation",
+  "height",
+  "weight",
 ]);
 
 function formatFieldName(key: string): string {
@@ -71,6 +85,16 @@ function formatFieldName(key: string): string {
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .trim();
+}
+
+function formatFieldValue(value: unknown): string {
+  if (typeof value === "object") return JSON.stringify(value);
+  const str = String(value);
+  if (!str) return str;
+  if (str === str.toLowerCase()) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+  return str;
 }
 
 function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onViewProfile: () => void }) {
@@ -169,7 +193,7 @@ function PatientCard({ patient, onViewProfile }: { patient: PatientRecord; onVie
                 {formatFieldName(key)}
               </p>
               <p className="text-sm font-semibold text-slate-700 truncate">
-                {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                {formatFieldValue(value)}
               </p>
             </div>
           </div>
@@ -304,6 +328,8 @@ function AddPatientDialog({
               {filtered.map((patient) => {
                 const isSent = sentIds.has(patient._id);
                 const isSending = sendingId === patient._id;
+                const isConnected = patient.connectionStatus === "accepted";
+                const isPending = patient.connectionStatus === "pending";
                 const initials = `${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`.toUpperCase();
 
                 return (
@@ -322,10 +348,15 @@ function AddPatientDialog({
                         {patient.email}
                       </p>
                     </div>
-                    {isSent ? (
+                    {isConnected ? (
                       <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
                         <Check size={14} />
-                        Sent
+                        Connected
+                      </span>
+                    ) : isSent || isPending ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg">
+                        <Check size={14} />
+                        Pending
                       </span>
                     ) : (
                       <button

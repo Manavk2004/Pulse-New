@@ -1,5 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
+import OpenAI from "openai";
 
 // Get patient by user ID
 export const getByUserId = query({
@@ -128,14 +130,38 @@ export const assignPhysician = mutation({
 export const getByPhysician = query({
   args: { physicianId: v.id("users") },
   handler: async (ctx, args) => {
-    const patients = await ctx.db
+    // Get patients assigned directly
+    const assignedPatients = await ctx.db
       .query("patients")
       .withIndex("by_assignedPhysician", (q) =>
         q.eq("assignedPhysicianId", args.physicianId)
       )
       .collect();
 
-    const visible = patients.filter((p) => p.showPatient !== false);
+    // Also get patients connected via accepted connection requests
+    const acceptedRequests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_physicianId_status", (q) =>
+        q.eq("physicianId", args.physicianId).eq("status", "accepted")
+      )
+      .collect();
+
+    const connectedPatientIds = new Set(acceptedRequests.map((r) => r.patientId));
+
+    // Fetch any connected patients not already in the assigned list
+    const assignedIds = new Set(assignedPatients.map((p) => p._id));
+    const additionalPatients = await Promise.all(
+      [...connectedPatientIds]
+        .filter((id) => !assignedIds.has(id))
+        .map((id) => ctx.db.get(id))
+    );
+
+    const allPatients = [
+      ...assignedPatients,
+      ...additionalPatients.filter((p): p is NonNullable<typeof p> => p !== null),
+    ];
+
+    const visible = allPatients.filter((p) => p.showPatient !== false);
 
     return Promise.all(
       visible.map(async (p) => {
@@ -221,6 +247,14 @@ export const updateProfileFields = mutation({
     procedures: v.optional(v.array(v.object({ name: v.string(), date: v.optional(v.string()) }))),
     insurance: v.optional(v.object({ planName: v.optional(v.string()), provider: v.optional(v.string()), memberId: v.optional(v.string()) })),
     emergencyContact: v.optional(v.object({ name: v.string(), relationship: v.string(), phoneNumber: v.string() })),
+    about: v.optional(v.string()),
+    familyHistory: v.optional(v.array(v.object({ relation: v.string(), condition: v.string() }))),
+    smokingStatus: v.optional(v.union(v.literal("never"), v.literal("former"), v.literal("current"))),
+    alcoholUse: v.optional(v.union(v.literal("none"), v.literal("occasional"), v.literal("moderate"), v.literal("heavy"))),
+    exerciseFrequency: v.optional(v.string()),
+    occupation: v.optional(v.string()),
+    height: v.optional(v.string()),
+    weight: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { patientId, ...fields } = args;
@@ -232,6 +266,72 @@ export const updateProfileFields = mutation({
       updates.profileFieldsUpdatedAt = Date.now();
       await ctx.db.patch(patientId, updates);
     }
+  },
+});
+
+// Get full patient profile by patient ID (with resolved photo URLs, privacy-filtered)
+export const getProfileByPatientId = query({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, args) => {
+    const patient = await ctx.db.get(args.patientId);
+    if (!patient) return null;
+
+    const profilePhotoUrl = patient.profilePhotoStorageId
+      ? await ctx.storage.getUrl(patient.profilePhotoStorageId)
+      : null;
+    const bannerPhotoUrl = patient.bannerPhotoStorageId
+      ? await ctx.storage.getUrl(patient.bannerPhotoStorageId)
+      : null;
+
+    // Clinical fields always visible to connected physicians
+    // Non-clinical fields respect cardVisibleFields privacy
+    const visibleFields = patient.cardVisibleFields ?? [];
+
+    const filteredPatient: Record<string, any> = {
+      _id: patient._id,
+      _creationTime: patient._creationTime,
+      userId: patient.userId,
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      dateOfBirth: patient.dateOfBirth,
+      profilePhotoUrl,
+      bannerPhotoUrl,
+      // Clinical fields — always visible to physicians
+      medications: patient.medications,
+      allergies: patient.allergies,
+      conditions: patient.conditions,
+      procedures: patient.procedures,
+      insurance: patient.insurance,
+      emergencyContact: patient.emergencyContact,
+      sex: patient.sex,
+      bloodType: patient.bloodType,
+      healthOverview: patient.healthOverview,
+      familyHistory: patient.familyHistory,
+      height: patient.height,
+      weight: patient.weight,
+    };
+
+    // Privacy-controlled fields — only if patient opted in
+    const privacyFields: Record<string, any> = {
+      phoneNumber: patient.phoneNumber,
+      city: patient.city,
+      state: patient.state,
+      country: patient.country,
+      cardBio: patient.cardBio,
+      about: patient.about,
+      smokingStatus: patient.smokingStatus,
+      alcoholUse: patient.alcoholUse,
+      exerciseFrequency: patient.exerciseFrequency,
+      occupation: patient.occupation,
+    };
+
+    for (const [key, value] of Object.entries(privacyFields)) {
+      if (visibleFields.length === 0 || visibleFields.includes(key)) {
+        filteredPatient[key] = value;
+      }
+    }
+
+    return filteredPatient;
   },
 });
 
@@ -249,5 +349,120 @@ export const search = query({
       .take(50);
 
     return results;
+  },
+});
+
+// ── Health Tips AI Generation ──
+
+export const patchHealthTips = internalMutation({
+  args: {
+    patientId: v.id("patients"),
+    healthTips: v.array(v.object({ title: v.string(), tip: v.string(), reason: v.optional(v.string()) })),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.patientId, {
+      healthTips: args.healthTips,
+      healthTipsUpdatedAt: Date.now(),
+    });
+  },
+});
+
+export const generateHealthTips = internalAction({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, args) => {
+    const patient = await ctx.runQuery(internal.patients.getByIdInternal, {
+      patientId: args.patientId,
+    });
+    if (!patient) return;
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return;
+
+    const openai = new OpenAI({ apiKey });
+
+    // Build patient context from available data
+    const parts: string[] = [];
+    if (patient.conditions?.length) {
+      parts.push(`Active conditions: ${patient.conditions.map((c: any) => `${c.name} (${c.status ?? "active"})`).join(", ")}`);
+    }
+    if (patient.medications?.length) {
+      parts.push(`Medications: ${patient.medications.map((m: any) => m.name + (m.dosage ? ` ${m.dosage}` : "")).join(", ")}`);
+    }
+    if (patient.allergies?.length) {
+      parts.push(`Allergies: ${patient.allergies.map((a: any) => a.allergen).join(", ")}`);
+    }
+    if (patient.smokingStatus) parts.push(`Smoking: ${patient.smokingStatus}`);
+    if (patient.alcoholUse) parts.push(`Alcohol: ${patient.alcoholUse}`);
+    if (patient.exerciseFrequency) parts.push(`Exercise: ${patient.exerciseFrequency}`);
+    if (patient.familyHistory?.length) {
+      parts.push(`Family history: ${patient.familyHistory.map((f: any) => `${f.relation} - ${f.condition}`).join(", ")}`);
+    }
+    if (patient.healthOverview) {
+      parts.push(`Health overview: ${patient.healthOverview}`);
+    }
+    if (patient.sex) parts.push(`Sex: ${patient.sex}`);
+    if (patient.bloodType) parts.push(`Blood type: ${patient.bloodType}`);
+    if (patient.height) parts.push(`Height: ${patient.height}`);
+    if (patient.weight) parts.push(`Weight: ${patient.weight}`);
+
+    const patientContext = parts.length > 0
+      ? parts.join("\n")
+      : "No detailed health information available. Provide general wellness tips.";
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a health wellness advisor. Based on the patient's health profile, generate exactly 4 personalized health tips. Each tip should be directly relevant to their specific conditions, medications, lifestyle, or risk factors. Be actionable and encouraging. Return ONLY valid JSON — an array of 4 objects with "title" (2-3 words, like a category label), "reason" (1 short sentence explaining which specific detail from the patient's profile prompted this tip, e.g. "Based on your elevated blood pressure" or "Given your family history of diabetes"), and "tip" (2-3 sentences of actionable advice). Example format: [{"title":"Heart Health","reason":"Based on your hyperlipidemia diagnosis","tip":"..."},...]`,
+          },
+          {
+            role: "user",
+            content: `Patient profile:\n${patientContext}`,
+          },
+        ],
+        max_tokens: 700,
+        temperature: 0.7,
+      });
+
+      const raw = completion.choices[0]?.message?.content?.trim();
+      if (!raw) return;
+
+      // Parse JSON from the response (handle markdown code blocks)
+      const jsonStr = raw.replace(/^```json?\n?/, "").replace(/\n?```$/, "").trim();
+      const tips = JSON.parse(jsonStr);
+
+      if (Array.isArray(tips) && tips.length > 0) {
+        await ctx.runMutation(internal.patients.patchHealthTips, {
+          patientId: args.patientId,
+          healthTips: tips.slice(0, 4).map((t: any) => ({
+            title: String(t.title),
+            tip: String(t.tip),
+            reason: String(t.reason ?? ""),
+          })),
+        });
+      }
+    } catch (error) {
+      console.error("Health tips generation failed:", error);
+    }
+  },
+});
+
+// Internal query for reading patient data inside actions
+export const getByIdInternal = internalQuery({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.patientId);
+  },
+});
+
+// Public mutation to trigger health tips regeneration
+export const refreshHealthTips = mutation({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.patients.generateHealthTips, {
+      patientId: args.patientId,
+    });
   },
 });

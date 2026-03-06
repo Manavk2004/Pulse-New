@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Globe,
   CreditCard,
+  UserCircle,
   User,
   Search,
   Bell,
@@ -31,7 +32,7 @@ function DashboardSidebar({
   className?: string;
   showBrand?: boolean;
 }) {
-  const tabs = ["Overview", "Appointments", "Health Records", "Messages", "Network", "My Card", "Settings"];
+  const tabs = ["Overview", "Appointments", "Health Records", "Messages", "Network", "My Card", "Profile", "Settings"];
 
   return (
     <aside
@@ -70,6 +71,7 @@ function DashboardSidebar({
             {item === "Messages" && <MessageSquare size={20} />}
             {item === "Network" && <Globe size={20} />}
             {item === "My Card" && <CreditCard size={20} />}
+            {item === "Profile" && <UserCircle size={20} />}
             {item === "Settings" && <User size={20} />}
             {item}
           </button>
@@ -220,6 +222,7 @@ function PortalLayoutInner({
   const isAppointmentsRoute = pathname.startsWith("/portal/appointments");
   const isNetworkRoute = pathname.startsWith("/portal/network");
   const isMyCardRoute = pathname.startsWith("/portal/my-card");
+  const isProfileRoute = pathname.startsWith("/portal/profile");
   const dashboardTab = isMessagesRoute
     ? "Messages"
     : isDocumentsRoute
@@ -230,7 +233,9 @@ function PortalLayoutInner({
           ? "Network"
           : isMyCardRoute
             ? "My Card"
-            : (searchParams.get("tab") ?? "Overview");
+            : isProfileRoute
+              ? "Profile"
+              : (searchParams.get("tab") ?? "Overview");
   const [searchText, setSearchText] = useState("");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
@@ -255,6 +260,10 @@ function PortalLayoutInner({
     }
     if (tab === "My Card") {
       router.push("/portal/my-card");
+      return;
+    }
+    if (tab === "Profile") {
+      router.push("/portal/profile");
       return;
     }
     const params = new URLSearchParams(searchParams.toString());

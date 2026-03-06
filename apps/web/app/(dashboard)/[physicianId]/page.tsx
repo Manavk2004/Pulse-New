@@ -89,6 +89,13 @@ function StatusBadge({ status }: { status: string }) {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function getStartOfWeek(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay(); // 0=Sun
@@ -280,7 +287,7 @@ export default function DashboardPage() {
       >
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            Good morning, Doctor
+            {getGreeting()}, Doctor
           </h1>
           <p className="text-slate-500 mt-1">
             You have {activeEscalationCount ?? "—"} pending escalation{activeEscalationCount === 1 ? "" : "s"} and{" "}

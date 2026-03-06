@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex";
@@ -21,6 +22,7 @@ function getInitials(first: string, last: string) {
 }
 
 export default function PatientNetworkPage() {
+  const router = useRouter();
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
 
   const convexUser = useQuery(
@@ -273,7 +275,11 @@ export default function PatientNetworkPage() {
                 {physicians.filter((p) => !dismissedIds.has(p._id)).map((physician) => (
                   <div
                     key={physician._id}
-                    className="border border-slate-200 rounded-xl hover:shadow-md transition-shadow flex flex-col items-center text-center overflow-hidden"
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/portal/profile/${physician.userId}`)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push(`/portal/profile/${physician.userId}`); } }}
+                    className="border border-slate-200 rounded-xl hover:shadow-md transition-shadow flex flex-col items-center text-center overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     {/* Top background strip with avatar inset */}
                     <div className="w-full h-[5.5rem] relative flex items-end justify-center pb-0">
@@ -287,7 +293,7 @@ export default function PatientNetworkPage() {
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-blue-100" />
                       )}
                       <button
-                        onClick={() => setDismissedIds((prev) => new Set(prev).add(physician._id))}
+                        onClick={(e) => { e.stopPropagation(); setDismissedIds((prev) => new Set(prev).add(physician._id)); }}
                         className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-white transition-colors z-10"
                         title="Dismiss"
                       >
@@ -351,7 +357,7 @@ export default function PatientNetworkPage() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleConnect(physician.userId)}
+                            onClick={(e) => { e.stopPropagation(); handleConnect(physician.userId); }}
                             disabled={loadingId === physician.userId}
                             className="w-full py-1.5 rounded-full text-xs font-medium border border-blue-600 text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                           >

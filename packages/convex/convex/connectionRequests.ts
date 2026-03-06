@@ -21,7 +21,23 @@ export const getAvailablePatients = query({
       )
       .collect();
 
-    // Return with user emails
+    // Get existing connection requests for this physician
+    const existingRequests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_physicianId", (q) => q.eq("physicianId", args.physicianUserId))
+      .collect();
+
+    // Build a map of patientId -> status
+    const statusMap = new Map<string, string>();
+    for (const r of existingRequests) {
+      const current = statusMap.get(r.patientId);
+      // "accepted" takes priority over "pending"
+      if (!current || r.status === "accepted") {
+        statusMap.set(r.patientId, r.status);
+      }
+    }
+
+    // Return with user emails and connection status
     return Promise.all(
       patients.map(async (p) => {
         const user = await ctx.db.get(p.userId);
@@ -31,6 +47,7 @@ export const getAvailablePatients = query({
           lastName: p.lastName,
           dateOfBirth: p.dateOfBirth,
           email: user?.email ?? "",
+          connectionStatus: statusMap.get(p._id) ?? null,
         };
       })
     );
@@ -96,9 +113,12 @@ export const getByPatientUserId = query({
       )
       .collect();
 
+    // Only show physician-initiated requests (incoming invitations)
+    const incoming = requests.filter((r) => r.initiatedBy !== "patient");
+
     // Enrich with physician info
     return await Promise.all(
-      requests.map(async (r) => {
+      incoming.map(async (r) => {
           const physician = await ctx.db
             .query("physicians")
             .withIndex("by_userId", (q) => q.eq("userId", r.physicianId))

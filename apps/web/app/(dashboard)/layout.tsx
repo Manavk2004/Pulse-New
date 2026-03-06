@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Globe,
   CreditCard,
+  UserCircle,
   AlertTriangle,
   Settings,
   Search,
@@ -32,6 +33,7 @@ const tabDefinitions = [
   { label: "Messages", icon: MessageSquare, path: "/messages" },
   { label: "Network", icon: Globe, path: "/network" },
   { label: "My Card", icon: CreditCard, path: "/my-card" },
+  { label: "Profile", icon: UserCircle, path: "/profile" },
   { label: "Escalations", icon: AlertTriangle, path: "/escalations" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];

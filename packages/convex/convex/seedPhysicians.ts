@@ -1,0 +1,395 @@
+import { internalMutation } from "./_generated/server";
+
+const FAKE_PHYSICIANS = [
+  {
+    firstName: "Sarah",
+    lastName: "Chen",
+    specialty: "Cardiology",
+    licenseNumber: "CA-CARD-20198",
+    email: "sarah.chen@cedarssinai.org",
+    city: "Los Angeles",
+    state: "CA",
+    country: "United States",
+    education: "Stanford School of Medicine",
+    yearsOfExperience: 14,
+    rating: 4.9,
+    cardBio: "Board-certified cardiologist specializing in preventive cardiology and heart failure management.",
+    phone: "(310) 555-0142",
+    about: "I am a board-certified cardiologist with over 14 years of experience in preventive cardiology, heart failure management, and cardiac imaging. My approach combines evidence-based medicine with compassionate patient care to help patients achieve optimal cardiovascular health.",
+    boardCertifications: [{ name: "Cardiovascular Disease", year: 2012 }, { name: "Internal Medicine", year: 2010 }],
+    hospitalAffiliations: ["Cedars-Sinai Medical Center", "UCLA Ronald Reagan Medical Center"],
+    languages: ["English", "Mandarin"],
+    insurancesAccepted: ["Blue Cross Blue Shield", "Aetna", "UnitedHealthcare", "Cigna", "Medicare"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Heart Failure", "Atrial Fibrillation", "Hypertension", "Coronary Artery Disease", "Valvular Heart Disease", "Hyperlipidemia"],
+    residency: "Stanford University Medical Center",
+    fellowship: "Cedars-Sinai Heart Institute",
+  },
+  {
+    firstName: "James",
+    lastName: "Okafor",
+    specialty: "Neurology",
+    licenseNumber: "NY-NEUR-30412",
+    email: "j.okafor@nyulangone.org",
+    city: "New York",
+    state: "NY",
+    country: "United States",
+    education: "Johns Hopkins School of Medicine",
+    yearsOfExperience: 11,
+    rating: 4.7,
+    cardBio: "Neurologist focused on movement disorders and neurodegenerative diseases. Active researcher in Parkinson's therapeutics.",
+    phone: "(212) 555-0387",
+    about: "As a neurologist specializing in movement disorders, I dedicate my practice to improving the lives of patients with Parkinson's disease, essential tremor, and other neurodegenerative conditions. I combine clinical expertise with cutting-edge research to offer the latest treatment options.",
+    boardCertifications: [{ name: "Neurology", year: 2015 }],
+    hospitalAffiliations: ["NYU Langone Health", "Bellevue Hospital Center"],
+    languages: ["English", "Igbo"],
+    insurancesAccepted: ["Aetna", "Empire BlueCross", "Oscar Health", "UnitedHealthcare"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Parkinson's Disease", "Essential Tremor", "Multiple Sclerosis", "Epilepsy", "Migraine"],
+    residency: "Johns Hopkins Hospital",
+    fellowship: "Columbia University Movement Disorders Center",
+  },
+  {
+    firstName: "Priya",
+    lastName: "Mehta",
+    specialty: "Endocrinology",
+    licenseNumber: "TX-ENDO-15673",
+    email: "priya.mehta@mdanderson.org",
+    city: "Houston",
+    state: "TX",
+    country: "United States",
+    education: "Baylor College of Medicine",
+    yearsOfExperience: 9,
+    rating: 4.8,
+    cardBio: "Endocrinologist with expertise in diabetes management and thyroid disorders.",
+    phone: "(713) 555-0219",
+    about: "I specialize in comprehensive diabetes care, thyroid disorders, and metabolic health. My goal is to empower patients with the knowledge and tools they need to manage their endocrine conditions effectively through personalized treatment plans.",
+    boardCertifications: [{ name: "Endocrinology, Diabetes & Metabolism", year: 2017 }],
+    hospitalAffiliations: ["MD Anderson Cancer Center", "Houston Methodist Hospital"],
+    languages: ["English", "Hindi", "Gujarati"],
+    insurancesAccepted: ["Blue Cross Blue Shield of Texas", "Cigna", "Humana", "Aetna", "Medicare"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Type 1 Diabetes", "Type 2 Diabetes", "Thyroid Disorders", "Osteoporosis", "Adrenal Disorders", "PCOS"],
+    residency: "Baylor College of Medicine",
+    fellowship: "UT Southwestern Endocrinology",
+  },
+  {
+    firstName: "Michael",
+    lastName: "Torres",
+    specialty: "Orthopedic Surgery",
+    licenseNumber: "FL-ORTH-44829",
+    email: "m.torres@mayoclinic.org",
+    city: "Jacksonville",
+    state: "FL",
+    country: "United States",
+    education: "University of Miami Miller School of Medicine",
+    yearsOfExperience: 17,
+    rating: 4.6,
+    cardBio: "Sports medicine and joint reconstruction specialist. Team physician for professional athletes.",
+    phone: "(904) 555-0563",
+    about: "With 17 years of experience in sports medicine and joint reconstruction, I have helped thousands of athletes and active individuals return to their peak performance. I specialize in minimally invasive arthroscopic techniques and joint replacement surgery.",
+    boardCertifications: [{ name: "Orthopedic Surgery", year: 2009 }, { name: "Sports Medicine", year: 2011 }],
+    hospitalAffiliations: ["Mayo Clinic Jacksonville", "Baptist Medical Center"],
+    languages: ["English", "Spanish"],
+    insurancesAccepted: ["UnitedHealthcare", "Florida Blue", "Aetna", "Cigna"],
+    acceptingNewPatients: false,
+    conditionsTreated: ["ACL Tears", "Rotator Cuff Injuries", "Knee Osteoarthritis", "Hip Replacement", "Meniscus Tears", "Fractures"],
+    residency: "Hospital for Special Surgery",
+    fellowship: "Andrews Sports Medicine & Orthopaedic Center",
+  },
+  {
+    firstName: "Emily",
+    lastName: "Nakamura",
+    specialty: "Psychiatry",
+    licenseNumber: "WA-PSYC-22156",
+    email: "e.nakamura@uwmedicine.org",
+    city: "Seattle",
+    state: "WA",
+    country: "United States",
+    education: "University of Washington School of Medicine",
+    yearsOfExperience: 8,
+    rating: 4.9,
+    cardBio: "Psychiatrist specializing in anxiety disorders, PTSD, and integrative mental health approaches.",
+    phone: "(206) 555-0891",
+    about: "I take a holistic approach to mental health, combining medication management with evidence-based psychotherapy techniques. I specialize in treating anxiety disorders, PTSD, and depression, with a focus on building resilience and long-term wellness.",
+    boardCertifications: [{ name: "Psychiatry", year: 2018 }],
+    hospitalAffiliations: ["UW Medical Center"],
+    languages: ["English", "Japanese"],
+    insurancesAccepted: ["Premera Blue Cross", "Regence", "Kaiser Permanente", "Aetna", "Cigna"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Generalized Anxiety", "PTSD", "Major Depression", "Panic Disorder", "OCD"],
+    residency: "University of Washington Medical Center",
+    fellowship: undefined,
+  },
+  {
+    firstName: "David",
+    lastName: "Goldstein",
+    specialty: "Gastroenterology",
+    licenseNumber: "MA-GAST-38741",
+    email: "d.goldstein@massgeneralhosp.org",
+    city: "Boston",
+    state: "MA",
+    country: "United States",
+    education: "Harvard Medical School",
+    yearsOfExperience: 20,
+    rating: 5.0,
+    cardBio: "Leading gastroenterologist with two decades of experience in IBD and hepatology.",
+    phone: "(617) 555-0334",
+    about: "With over 20 years of practice, I am a nationally recognized expert in inflammatory bowel disease and hepatology. I have published extensively on Crohn's disease treatment advances and lead clinical trials for novel IBD therapeutics.",
+    boardCertifications: [{ name: "Gastroenterology", year: 2006 }, { name: "Internal Medicine", year: 2004 }],
+    hospitalAffiliations: ["Massachusetts General Hospital", "Brigham and Women's Hospital"],
+    languages: ["English", "Hebrew"],
+    insurancesAccepted: ["Blue Cross Blue Shield of MA", "Harvard Pilgrim", "Tufts Health Plan", "Medicare", "Aetna"],
+    acceptingNewPatients: false,
+    conditionsTreated: ["Crohn's Disease", "Ulcerative Colitis", "Hepatitis C", "GERD", "Celiac Disease", "Liver Cirrhosis"],
+    residency: "Massachusetts General Hospital",
+    fellowship: "Brigham and Women's Hospital GI Division",
+  },
+  {
+    firstName: "Aisha",
+    lastName: "Patel",
+    specialty: "Pediatrics",
+    licenseNumber: "IL-PEDI-51098",
+    email: "a.patel@luriechildrens.org",
+    city: "Chicago",
+    state: "IL",
+    country: "United States",
+    education: "Northwestern Feinberg School of Medicine",
+    yearsOfExperience: 12,
+    rating: 4.8,
+    cardBio: "Pediatrician dedicated to childhood developmental health and adolescent medicine.",
+    phone: "(312) 555-0776",
+    about: "I am passionate about guiding children and families through every stage of development. From newborn care to adolescent health, I provide comprehensive pediatric services with a focus on preventive care and developmental milestones.",
+    boardCertifications: [{ name: "Pediatrics", year: 2014 }],
+    hospitalAffiliations: ["Ann & Robert H. Lurie Children's Hospital", "Northwestern Memorial Hospital"],
+    languages: ["English", "Urdu"],
+    insurancesAccepted: ["Blue Cross Blue Shield of IL", "UnitedHealthcare", "Aetna", "Medicaid"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["ADHD", "Asthma", "Growth Disorders", "Childhood Obesity", "Developmental Delays"],
+    residency: "Children's Hospital of Philadelphia",
+    fellowship: undefined,
+  },
+  {
+    firstName: "Robert",
+    lastName: "Kim",
+    specialty: "Pulmonology",
+    licenseNumber: "GA-PULM-67234",
+    email: "r.kim@emory.edu",
+    city: "Atlanta",
+    state: "GA",
+    country: "United States",
+    education: "Emory University School of Medicine",
+    yearsOfExperience: 15,
+    rating: 4.5,
+    cardBio: "Pulmonologist treating asthma, COPD, and interstitial lung diseases. Sleep medicine certified.",
+    phone: "(404) 555-0128",
+    about: "I provide expert care for patients with complex lung conditions including COPD, asthma, interstitial lung disease, and sleep disorders. My dual certification in pulmonology and sleep medicine allows me to address respiratory issues comprehensively.",
+    boardCertifications: [{ name: "Pulmonary Disease", year: 2011 }, { name: "Sleep Medicine", year: 2013 }],
+    hospitalAffiliations: ["Emory University Hospital", "Grady Memorial Hospital"],
+    languages: ["English", "Korean"],
+    insurancesAccepted: ["Anthem Blue Cross", "Cigna", "Aetna", "UnitedHealthcare", "Medicare"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["COPD", "Asthma", "Pulmonary Fibrosis", "Sleep Apnea", "Lung Cancer Screening", "Sarcoidosis"],
+    residency: "Emory University Hospital",
+    fellowship: "National Jewish Health",
+  },
+  {
+    firstName: "Maria",
+    lastName: "Gonzalez",
+    specialty: "Oncology",
+    licenseNumber: "CA-ONCO-78345",
+    email: "m.gonzalez@ucsfhealth.org",
+    city: "San Francisco",
+    state: "CA",
+    country: "United States",
+    education: "UCSF School of Medicine",
+    yearsOfExperience: 13,
+    rating: 4.7,
+    cardBio: "Medical oncologist specializing in breast cancer and immunotherapy clinical trials.",
+    phone: "(415) 555-0452",
+    about: "I am a medical oncologist focused on breast cancer treatment and pioneering immunotherapy approaches. I lead several clinical trials investigating novel combination therapies and am committed to providing personalized, cutting-edge cancer care.",
+    boardCertifications: [{ name: "Medical Oncology", year: 2013 }, { name: "Hematology", year: 2013 }],
+    hospitalAffiliations: ["UCSF Medical Center", "Zuckerberg San Francisco General Hospital"],
+    languages: ["English", "Spanish"],
+    insurancesAccepted: ["Blue Shield of California", "Aetna", "UnitedHealthcare", "Medicare", "Cigna"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Breast Cancer", "Lung Cancer", "Lymphoma", "Immunotherapy Side Effects", "Cancer Survivorship"],
+    residency: "UCSF Medical Center",
+    fellowship: "Dana-Farber Cancer Institute",
+  },
+  {
+    firstName: "Andrew",
+    lastName: "Williams",
+    specialty: "Dermatology",
+    licenseNumber: "CO-DERM-89012",
+    email: "a.williams@ucdenver.edu",
+    city: "Denver",
+    state: "CO",
+    country: "United States",
+    education: "University of Colorado School of Medicine",
+    yearsOfExperience: 7,
+    rating: 4.6,
+    cardBio: "Dermatologist with a focus on skin cancer screening, cosmetic dermatology, and eczema management.",
+    phone: "(720) 555-0645",
+    about: "I combine medical and cosmetic dermatology to help patients look and feel their best. From skin cancer screenings and surgical treatments to eczema and acne management, I provide comprehensive skin care with the latest techniques.",
+    boardCertifications: [{ name: "Dermatology", year: 2019 }],
+    hospitalAffiliations: ["UCHealth University of Colorado Hospital"],
+    languages: ["English"],
+    insurancesAccepted: ["Anthem Blue Cross", "Cigna", "UnitedHealthcare", "Kaiser Permanente"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Melanoma", "Basal Cell Carcinoma", "Eczema", "Psoriasis", "Acne", "Rosacea"],
+    residency: "University of Colorado Dermatology",
+    fellowship: undefined,
+  },
+  {
+    firstName: "Lisa",
+    lastName: "Andersson",
+    specialty: "Rheumatology",
+    licenseNumber: "MN-RHEU-34567",
+    email: "l.andersson@mayoclinic.org",
+    city: "Rochester",
+    state: "MN",
+    country: "United States",
+    education: "Mayo Clinic Alix School of Medicine",
+    yearsOfExperience: 18,
+    rating: 4.9,
+    cardBio: "Rheumatologist specializing in lupus, rheumatoid arthritis, and autoimmune disease management.",
+    phone: "(507) 555-0293",
+    about: "With 18 years of experience at Mayo Clinic, I specialize in diagnosing and treating complex autoimmune conditions. My research focuses on biologic therapies for rheumatoid arthritis and systemic lupus erythematosus.",
+    boardCertifications: [{ name: "Rheumatology", year: 2008 }, { name: "Internal Medicine", year: 2006 }],
+    hospitalAffiliations: ["Mayo Clinic Rochester"],
+    languages: ["English", "Swedish"],
+    insurancesAccepted: ["Blue Cross Blue Shield of MN", "UnitedHealthcare", "Medica", "Medicare", "Aetna"],
+    acceptingNewPatients: false,
+    conditionsTreated: ["Rheumatoid Arthritis", "Lupus (SLE)", "Sjogren's Syndrome", "Gout", "Vasculitis", "Ankylosing Spondylitis"],
+    residency: "Mayo Clinic",
+    fellowship: "Mayo Clinic Rheumatology",
+  },
+  {
+    firstName: "Marcus",
+    lastName: "Johnson",
+    specialty: "Emergency Medicine",
+    licenseNumber: "PA-EMER-45678",
+    email: "m.johnson@upenn.edu",
+    city: "Philadelphia",
+    state: "PA",
+    country: "United States",
+    education: "Perelman School of Medicine at UPenn",
+    yearsOfExperience: 10,
+    rating: 4.4,
+    cardBio: "Emergency medicine physician with trauma and critical care expertise.",
+    phone: "(215) 555-0817",
+    about: "I am an emergency medicine physician with specialized training in trauma and critical care. I lead our trauma team and am dedicated to providing rapid, life-saving interventions in high-acuity situations.",
+    boardCertifications: [{ name: "Emergency Medicine", year: 2016 }],
+    hospitalAffiliations: ["Hospital of the University of Pennsylvania", "Penn Presbyterian Medical Center"],
+    languages: ["English"],
+    insurancesAccepted: ["Independence Blue Cross", "Aetna", "Cigna", "UnitedHealthcare"],
+    acceptingNewPatients: true,
+    conditionsTreated: ["Trauma", "Acute Cardiac Events", "Stroke", "Sepsis", "Fractures", "Burns"],
+    residency: "Hospital of the University of Pennsylvania",
+    fellowship: undefined,
+  },
+];
+
+export const seed = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let created = 0;
+
+    for (const doc of FAKE_PHYSICIANS) {
+      // Check if a user with this email already exists
+      const existingUser = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", doc.email))
+        .unique();
+
+      if (existingUser) {
+        // Skip — already seeded
+        continue;
+      }
+
+      // Create user record
+      const userId = await ctx.db.insert("users", {
+        clerkId: `fake_${doc.email.replace(/[@.]/g, "_")}`,
+        email: doc.email,
+        role: "physician",
+        createdAt: Date.now(),
+        lastLoginAt: Date.now(),
+      });
+
+      // Create physician profile with all profile fields
+      await ctx.db.insert("physicians", {
+        userId,
+        firstName: doc.firstName,
+        lastName: doc.lastName,
+        specialty: doc.specialty,
+        licenseNumber: doc.licenseNumber,
+        email: doc.email,
+        city: doc.city,
+        state: doc.state,
+        country: doc.country,
+        education: doc.education,
+        yearsOfExperience: doc.yearsOfExperience,
+        rating: doc.rating,
+        cardBio: doc.cardBio,
+        phone: doc.phone,
+        about: doc.about,
+        boardCertifications: doc.boardCertifications,
+        hospitalAffiliations: doc.hospitalAffiliations,
+        languages: doc.languages,
+        insurancesAccepted: doc.insurancesAccepted,
+        acceptingNewPatients: doc.acceptingNewPatients,
+        conditionsTreated: doc.conditionsTreated,
+        residency: doc.residency,
+        fellowship: doc.fellowship,
+      });
+
+      created++;
+    }
+
+    return { created, total: FAKE_PHYSICIANS.length };
+  },
+});
+
+// Patch existing seeded physicians with new profile fields
+export const updateFakeProfiles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let updated = 0;
+
+    for (const doc of FAKE_PHYSICIANS) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", doc.email))
+        .unique();
+
+      if (!user) continue;
+
+      const physician = await ctx.db
+        .query("physicians")
+        .withIndex("by_userId", (q) => q.eq("userId", user._id))
+        .unique();
+
+      if (!physician) continue;
+
+      // Only patch if missing the new fields
+      if (physician.about) continue;
+
+      await ctx.db.patch(physician._id, {
+        about: doc.about,
+        boardCertifications: doc.boardCertifications,
+        hospitalAffiliations: doc.hospitalAffiliations,
+        languages: doc.languages,
+        insurancesAccepted: doc.insurancesAccepted,
+        acceptingNewPatients: doc.acceptingNewPatients,
+        conditionsTreated: doc.conditionsTreated,
+        residency: doc.residency,
+        fellowship: doc.fellowship,
+      });
+
+      updated++;
+    }
+
+    return { updated, total: FAKE_PHYSICIANS.length };
+  },
+});

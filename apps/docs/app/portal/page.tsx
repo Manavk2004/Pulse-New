@@ -4,22 +4,16 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@repo/convex';
-import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock, Loader2, UserPlus, Check, XCircle, Pencil, Pill, AlertCircle, Stethoscope, User, Syringe, ShieldCheck, Phone, Plus, Trash2, FileText } from 'lucide-react';
+import { Activity, MessageSquare, Heart, Droplets, Thermometer, ChevronRight, Send, Bot, X, PlusCircle, Video, Clock, Loader2, UserPlus, Check, XCircle, Pencil, Pill, AlertCircle, Stethoscope, User, Syringe, ShieldCheck, Phone, Plus, Trash2, FileText, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const appointments = [{
-  id: 1,
-  doctor: 'Dr. Sarah Wilson',
-  specialty: 'Cardiologist',
-  time: 'Tomorrow, 10:30 AM',
-  avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop'
-}, {
-  id: 2,
-  doctor: 'Dr. James Miller',
-  specialty: 'General Practitioner',
-  time: 'Oct 24, 02:15 PM',
-  avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop'
-}];
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 
 const MetricCard = ({
   title,
@@ -27,33 +21,84 @@ const MetricCard = ({
   unit,
   icon: Icon,
   color,
-  loading
-}: any) => (
-  <motion.div
-    whileHover={{ y: -4 }}
-    className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between"
-  >
-    <div className={`p-2 rounded-lg w-fit ${color}`}>
-      <Icon size={20} className="text-white" />
-    </div>
-    <div className="mt-4">
-      <p className="text-slate-500 text-sm font-medium">{title}</p>
-      <div className="flex items-baseline gap-1 mt-1">
-        {loading && value === "—" ? (
-          <div className="flex items-center gap-2">
-            <Loader2 size={18} className="animate-spin text-slate-400" />
-            <span className="text-sm text-slate-400">Analyzing...</span>
-          </div>
-        ) : (
-          <>
-            <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-            <span className="text-slate-400 text-sm">{unit}</span>
-          </>
+  loading,
+  onSave,
+}: any) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const committedRef = useRef(false);
+
+  const startEdit = () => {
+    committedRef.current = false;
+    setDraft(value === "—" ? "" : String(value));
+    setEditing(true);
+  };
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const commitEdit = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = draft.trim();
+    const currentStr = value === "—" ? "" : String(value);
+    if (trimmed !== currentStr) {
+      onSave?.(trimmed || null);
+    }
+    setEditing(false);
+  };
+
+  return (
+    <motion.div
+      whileHover={{ y: -4 }}
+      onClick={() => !editing && startEdit()}
+      className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between cursor-pointer group"
+    >
+      <div className="flex justify-between items-start">
+        <div className={`p-2 rounded-lg w-fit ${color}`}>
+          <Icon size={20} className="text-white" />
+        </div>
+        {!editing && !loading && (
+          <Pencil size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
         )}
       </div>
-    </div>
-  </motion.div>
-);
+      <div className="mt-4">
+        <p className="text-slate-500 text-sm font-medium">{title}</p>
+        <div className="flex items-baseline gap-1 mt-1">
+          {loading && value === "—" ? (
+            <div className="flex items-center gap-2">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+              <span className="text-sm text-slate-400">Analyzing...</span>
+            </div>
+          ) : editing ? (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={inputRef}
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitEdit();
+                  if (e.key === "Escape") setEditing(false);
+                }}
+                onBlur={commitEdit}
+                className="w-24 text-2xl font-bold text-slate-800 bg-transparent border-b-2 border-blue-500 outline-none"
+              />
+              <span className="text-slate-400 text-sm">{unit}</span>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+              <span className="text-slate-400 text-sm">{unit}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
 export default function PortalPage() {
   const router = useRouter();
@@ -80,6 +125,46 @@ export default function PortalPage() {
     api.documents.isProcessing,
     patientProfile ? { patientId: patientProfile._id } : "skip"
   );
+
+  // Appointments
+  const appointments = useQuery(
+    api.appointments.getByPatient,
+    patientProfile ? { patientId: patientProfile._id } : "skip"
+  );
+
+  const upcomingAppointments = React.useMemo(() => {
+    if (!appointments) return [];
+    const todayISO = new Date().toISOString().split("T")[0]!;
+    return appointments
+      .filter((a) => a.status === "scheduled" && a.date >= todayISO)
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return a.startTime < b.startTime ? -1 : 1;
+      })
+      .slice(0, 3);
+  }, [appointments]);
+
+  // Vitals manual editing
+  const upsertVitals = useMutation(api.vitals.upsertManual);
+
+  // Health tips
+  const refreshHealthTips = useMutation(api.patients.refreshHealthTips);
+  const [tipsGenerating, setTipsGenerating] = useState(false);
+
+  // Auto-generate health tips if none exist
+  const tipsInitiatedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (patientProfile && !patientProfile.healthTips && tipsInitiatedRef.current !== patientProfile._id) {
+      tipsInitiatedRef.current = patientProfile._id;
+      setTipsGenerating(true);
+      refreshHealthTips({ patientId: patientProfile._id })
+        .catch(console.error)
+        .finally(() => setTipsGenerating(false));
+    }
+    if (patientProfile?.healthTips) {
+      setTipsGenerating(false);
+    }
+  }, [patientProfile?.healthTips, patientProfile?._id, refreshHealthTips]);
 
   // Health overview editing
   const updateHealthOverview = useMutation(api.patients.updateHealthOverview);
@@ -122,6 +207,7 @@ export default function PortalPage() {
   const [procedureDraft, setProcedureDraft] = useState<{ name: string; date: string }[]>([]);
   const [insuranceDraft, setInsuranceDraft] = useState({ planName: "", provider: "", memberId: "" });
   const [emergencyDraft, setEmergencyDraft] = useState({ name: "", relationship: "", phoneNumber: "" });
+  const [lifestyleDraft, setLifestyleDraft] = useState({ smoking: "", alcohol: "", exercise: "", occupation: "" });
 
   const startEditField = (field: string) => {
     if (!patientProfile) return;
@@ -148,6 +234,9 @@ export default function PortalPage() {
         break;
       case "emergency":
         setEmergencyDraft({ name: p.emergencyContact?.name ?? "", relationship: p.emergencyContact?.relationship ?? "", phoneNumber: p.emergencyContact?.phoneNumber ?? "" });
+        break;
+      case "lifestyle":
+        setLifestyleDraft({ smoking: p.smokingStatus ?? "", alcohol: p.alcoholUse ?? "", exercise: p.exerciseFrequency ?? "", occupation: p.occupation ?? "" });
         break;
     }
     setEditingField(field);
@@ -186,6 +275,12 @@ export default function PortalPage() {
           if (emergencyDraft.name.trim() && emergencyDraft.relationship.trim() && emergencyDraft.phoneNumber.trim()) {
             args.emergencyContact = { name: emergencyDraft.name.trim(), relationship: emergencyDraft.relationship.trim(), phoneNumber: emergencyDraft.phoneNumber.trim() };
           }
+          break;
+        case "lifestyle":
+          if (lifestyleDraft.smoking) args.smokingStatus = lifestyleDraft.smoking;
+          if (lifestyleDraft.alcohol) args.alcoholUse = lifestyleDraft.alcohol;
+          if (lifestyleDraft.exercise.trim()) args.exerciseFrequency = lifestyleDraft.exercise.trim();
+          if (lifestyleDraft.occupation.trim()) args.occupation = lifestyleDraft.occupation.trim();
           break;
       }
       await updateProfileFields(args);
@@ -445,7 +540,7 @@ export default function PortalPage() {
       {/* Welcome Section */}
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Good morning, {patientProfile?.firstName ?? "there"}</h1>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{getGreeting()}, {patientProfile?.firstName ?? "there"}</h1>
           <p className="text-slate-500 mt-1">Your vitals are extracted automatically from uploaded medical documents.</p>
         </div>
         <div className="flex gap-3">
@@ -496,10 +591,10 @@ export default function PortalPage() {
 
       {/* Metrics Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="Heart Rate" value={latestVitals?.heartRate ?? "—"} unit="bpm" icon={Heart} color="bg-rose-500" loading={isProcessing} />
-        <MetricCard title="Blood Pressure" value={latestVitals?.systolicBP != null && latestVitals?.diastolicBP != null ? `${latestVitals.systolicBP}/${latestVitals.diastolicBP}` : "—"} unit="mmHg" icon={Activity} color="bg-blue-500" loading={isProcessing} />
-        <MetricCard title="Glucose Level" value={latestVitals?.glucoseLevel ?? "—"} unit="mg/dL" icon={Droplets} color="bg-teal-500" loading={isProcessing} />
-        <MetricCard title="Body Temp" value={latestVitals?.bodyTemperature ?? "—"} unit="°F" icon={Thermometer} color="bg-amber-500" loading={isProcessing} />
+        <MetricCard title="Heart Rate" value={latestVitals?.heartRate ?? "—"} unit="bpm" icon={Heart} color="bg-rose-500" loading={isProcessing} onSave={(v: string | null) => { if (!patientProfile) return; if (v) { upsertVitals({ patientId: patientProfile._id, heartRate: Number(v) }); } else { upsertVitals({ patientId: patientProfile._id, clearFields: ["heartRate"] }); } }} />
+        <MetricCard title="Blood Pressure" value={latestVitals?.systolicBP != null && latestVitals?.diastolicBP != null ? `${latestVitals.systolicBP}/${latestVitals.diastolicBP}` : "—"} unit="mmHg" icon={Activity} color="bg-blue-500" loading={isProcessing} onSave={(v: string | null) => { if (!patientProfile) return; if (!v) { upsertVitals({ patientId: patientProfile._id, clearFields: ["systolicBP", "diastolicBP"] }); return; } const parts = v.split("/"); if (parts.length === 2) { const s = Number(parts[0]); const d = Number(parts[1]); if (!isNaN(s) && !isNaN(d)) upsertVitals({ patientId: patientProfile._id, systolicBP: s, diastolicBP: d }); } }} />
+        <MetricCard title="Glucose Level" value={latestVitals?.glucoseLevel ?? "—"} unit="mg/dL" icon={Droplets} color="bg-teal-500" loading={isProcessing} onSave={(v: string | null) => { if (!patientProfile) return; if (v) { upsertVitals({ patientId: patientProfile._id, glucoseLevel: Number(v) }); } else { upsertVitals({ patientId: patientProfile._id, clearFields: ["glucoseLevel"] }); } }} />
+        <MetricCard title="Body Temp" value={latestVitals?.bodyTemperature ?? "—"} unit="°F" icon={Thermometer} color="bg-amber-500" loading={isProcessing} onSave={(v: string | null) => { if (!patientProfile) return; if (v) { upsertVitals({ patientId: patientProfile._id, bodyTemperature: Number(v) }); } else { upsertVitals({ patientId: patientProfile._id, clearFields: ["bodyTemperature"] }); } }} />
       </section>
 
       {/* Medical Profile Section */}
@@ -759,6 +854,63 @@ export default function PortalPage() {
             )}
           </div>
 
+          {/* Lifestyle Factors */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-teal-50"><Activity size={16} className="text-teal-600" /></div>
+                <h4 className="text-sm font-bold text-slate-700">Lifestyle</h4>
+              </div>
+              {editingField !== "lifestyle" && !isProcessing && (
+                <button onClick={() => startEditField("lifestyle")} className="text-xs text-slate-400 hover:text-blue-600 flex items-center gap-1"><Pencil size={12} /> Edit</button>
+              )}
+            </div>
+            {editingField === "lifestyle" ? (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Smoking</label>
+                  <select value={lifestyleDraft.smoking} onChange={(e) => setLifestyleDraft({ ...lifestyleDraft, smoking: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+                    <option value="">Not specified</option>
+                    <option value="never">Never</option>
+                    <option value="former">Former</option>
+                    <option value="current">Current</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Alcohol Use</label>
+                  <select value={lifestyleDraft.alcohol} onChange={(e) => setLifestyleDraft({ ...lifestyleDraft, alcohol: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+                    <option value="">Not specified</option>
+                    <option value="none">None</option>
+                    <option value="occasional">Occasional</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="heavy">Heavy</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Exercise</label>
+                  <input value={lifestyleDraft.exercise} onChange={(e) => setLifestyleDraft({ ...lifestyleDraft, exercise: e.target.value })} placeholder="e.g., 3x/week" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Occupation</label>
+                  <input value={lifestyleDraft.occupation} onChange={(e) => setLifestyleDraft({ ...lifestyleDraft, occupation: e.target.value })} placeholder="e.g., Software Engineer" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setEditingField(null)} disabled={savingField} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Cancel</button>
+                  <button onClick={() => saveField("lifestyle")} disabled={savingField} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg">{savingField ? <Loader2 size={12} className="animate-spin" /> : "Save"}</button>
+                </div>
+              </div>
+            ) : ((patientProfile as any)?.smokingStatus || (patientProfile as any)?.alcoholUse || (patientProfile as any)?.exerciseFrequency || (patientProfile as any)?.occupation) ? (
+              <div className="space-y-1.5">
+                {(patientProfile as any)?.smokingStatus && <p className="text-sm text-slate-700"><span className="text-slate-400 text-xs">Smoking:</span> <span className="capitalize">{(patientProfile as any).smokingStatus}</span></p>}
+                {(patientProfile as any)?.alcoholUse && <p className="text-sm text-slate-700"><span className="text-slate-400 text-xs">Alcohol:</span> <span className="capitalize">{(patientProfile as any).alcoholUse}</span></p>}
+                {(patientProfile as any)?.exerciseFrequency && <p className="text-sm text-slate-700"><span className="text-slate-400 text-xs">Exercise:</span> {(patientProfile as any).exerciseFrequency}</p>}
+                {(patientProfile as any)?.occupation && <p className="text-sm text-slate-700"><span className="text-slate-400 text-xs">Occupation:</span> {(patientProfile as any).occupation}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">No lifestyle info</p>
+            )}
+          </div>
+
           {/* Emergency Contact */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-3">
@@ -800,7 +952,9 @@ export default function PortalPage() {
 
       {/* Chart & Appointments Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+        {/* Left column: Profile Summary + Health Tips */}
+        <div className="lg:col-span-2 space-y-6 self-start">
+        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Your Profile Summary</h3>
@@ -816,9 +970,9 @@ export default function PortalPage() {
               </button>
             )}
           </div>
-          <div className="min-h-[200px] flex items-start">
+          <div className="flex items-start">
             {isProcessing ? (
-              <div className="w-full h-[200px] flex flex-col items-center justify-center gap-3">
+              <div className="w-full min-h-[120px] flex flex-col items-center justify-center gap-3">
                 <Loader2 size={28} className="animate-spin text-blue-500" />
                 <p className="text-sm text-slate-500 font-medium">Analyzing your medical documents...</p>
                 <p className="text-xs text-slate-400">Generating your profile summary from uploaded records</p>
@@ -855,44 +1009,106 @@ export default function PortalPage() {
                 {patientProfile.healthOverview}
               </p>
             ) : (
-              <div className="w-full h-[200px] flex flex-col items-center justify-center text-slate-400 gap-2">
+              <div className="w-full min-h-[120px] flex flex-col items-center justify-center text-slate-400 gap-2">
                 <Activity size={32} className="text-slate-300" />
                 <p className="text-sm">No profile summary yet. Upload medical documents to auto-generate one.</p>
               </div>
             )}
           </div>
           {!editingOverview && patientProfile?.healthOverviewUpdatedAt && (
-            <p className="text-xs text-slate-400 mt-4">
+            <p className="text-xs text-slate-400 mt-2">
               Last updated: {new Date(patientProfile.healthOverviewUpdatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
             </p>
           )}
         </div>
 
-        <div className="space-y-6">
+        {/* Health Tips */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-6 border border-emerald-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-100"><Heart size={16} className="text-emerald-600" /></div>
+              <h3 className="text-lg font-bold text-slate-800">Health Tips</h3>
+              <span className="text-xs text-emerald-600 font-medium bg-emerald-100 px-2 py-0.5 rounded-full">AI Personalized</span>
+            </div>
+            {patientProfile && (
+              <button
+                onClick={() => {
+                  setTipsGenerating(true);
+                  refreshHealthTips({ patientId: patientProfile._id }).catch(console.error);
+                }}
+                disabled={tipsGenerating}
+                className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100/50 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={tipsGenerating ? "animate-spin" : ""} />
+                Refresh
+              </button>
+            )}
+          </div>
+          {tipsGenerating && !patientProfile?.healthTips ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 size={24} className="animate-spin text-emerald-500" />
+              <p className="text-sm text-emerald-600 font-medium">Generating personalized tips...</p>
+            </div>
+          ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(patientProfile?.healthTips ?? [
+              { title: "Heart Health", tip: "Aim for 150 minutes of moderate aerobic activity per week. Even brisk walking counts toward your goal." },
+              { title: "Nutrition", tip: "Increase fiber intake with whole grains, fruits, and vegetables. This helps manage cholesterol and blood sugar levels." },
+              { title: "Stress Management", tip: "Practice deep breathing or meditation for 10 minutes daily. Chronic stress can elevate blood pressure and heart rate." },
+              { title: "Sleep Hygiene", tip: "Target 7-9 hours of quality sleep. Consistent sleep schedules support immune function and cardiovascular health." },
+            ]).map((item, i) => (
+              <div key={i} className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-emerald-100/50">
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">{item.title}</p>
+                {"reason" in item && item.reason && (
+                  <p className="text-xs text-emerald-600/80 italic mb-1.5">{item.reason}</p>
+                )}
+                <p className="text-sm text-slate-600">{item.tip}</p>
+              </div>
+            ))}
+          </div>
+          )}
+        </div>
+        </div>{/* end left column */}
+
+        <div className="flex flex-col gap-6">
           <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-bold text-slate-800 mb-6">Upcoming Appointments</h3>
             <div className="space-y-4">
-              {appointments.map(apt => (
-                <div key={apt.id} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                  <img src={apt.avatar} alt={apt.doctor} className="w-12 h-12 rounded-xl object-cover" />
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-slate-800">{apt.doctor}</h4>
-                    <p className="text-xs text-slate-500 font-medium">{apt.specialty}</p>
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-bold bg-blue-50 w-fit px-2 py-0.5 rounded-full uppercase">
-                      <Clock size={10} />
-                      {apt.time}
+              {upcomingAppointments.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4">No upcoming appointments</p>
+              ) : (
+                upcomingAppointments.map(apt => {
+                  const docName = apt.physician
+                    ? `Dr. ${apt.physician.firstName} ${apt.physician.lastName}`
+                    : "Doctor";
+                  const initials = apt.physician
+                    ? `${apt.physician.firstName?.[0] ?? ""}${apt.physician.lastName?.[0] ?? ""}`
+                    : "?";
+                  return (
+                    <div key={apt._id} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                      <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                        {initials}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-slate-800">{docName}</h4>
+                        <p className="text-xs text-slate-500 font-medium">{apt.physician?.specialty ?? "Appointment"}</p>
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-bold bg-blue-50 w-fit px-2 py-0.5 rounded-full uppercase">
+                          <Clock size={10} />
+                          {apt.startTime} &middot; {apt.date}
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300" />
                     </div>
-                  </div>
-                  <ChevronRight size={16} className="text-slate-300" />
-                </div>
-              ))}
+                  );
+                })
+              )}
             </div>
             <button className="w-full mt-6 py-3 text-slate-500 font-semibold text-sm border-t border-slate-100 hover:text-blue-600 transition-colors">
               View All Appointments
             </button>
           </div>
 
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 text-white relative overflow-hidden">
+          <div onClick={() => router.push("/portal/network")} className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-6 text-white relative overflow-hidden flex-1 cursor-pointer hover:from-slate-700 hover:to-slate-800 transition-colors">
             <div className="absolute bottom-0 right-0 opacity-10">
               <Activity size={120} />
             </div>

@@ -72,6 +72,15 @@ export const update = mutation({
     city: v.optional(v.string()),
     state: v.optional(v.string()),
     country: v.optional(v.string()),
+    about: v.optional(v.string()),
+    boardCertifications: v.optional(v.array(v.object({ name: v.string(), year: v.optional(v.number()) }))),
+    hospitalAffiliations: v.optional(v.array(v.string())),
+    languages: v.optional(v.array(v.string())),
+    insurancesAccepted: v.optional(v.array(v.string())),
+    acceptingNewPatients: v.optional(v.boolean()),
+    conditionsTreated: v.optional(v.array(v.string())),
+    residency: v.optional(v.string()),
+    fellowship: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { physicianId, ...updates } = args;
@@ -79,6 +88,39 @@ export const update = mutation({
       Object.entries(updates).filter(([_, v]) => v !== undefined)
     );
     await ctx.db.patch(physicianId, filteredUpdates);
+  },
+});
+
+// Get full physician profile by user ID (fat read with resolved URLs + org name)
+export const getProfileByUserId = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const physician = await ctx.db
+      .query("physicians")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!physician) return null;
+
+    const profilePhotoUrl = physician.profilePhotoStorageId
+      ? await ctx.storage.getUrl(physician.profilePhotoStorageId)
+      : null;
+    const bannerPhotoUrl = physician.bannerPhotoStorageId
+      ? await ctx.storage.getUrl(physician.bannerPhotoStorageId)
+      : null;
+
+    let organizationName: string | null = null;
+    if (physician.organizationId) {
+      const org = await ctx.db.get(physician.organizationId);
+      organizationName = org?.name ?? null;
+    }
+
+    return {
+      ...physician,
+      profilePhotoUrl,
+      bannerPhotoUrl,
+      organizationName,
+    };
   },
 });
 
