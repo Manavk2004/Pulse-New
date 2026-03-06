@@ -8,6 +8,8 @@ import {
   Calendar,
   Heart,
   MessageSquare,
+  Globe,
+  CreditCard,
   User,
   Search,
   Bell,
@@ -29,7 +31,7 @@ function DashboardSidebar({
   className?: string;
   showBrand?: boolean;
 }) {
-  const tabs = ["Overview", "Appointments", "Health Records", "Messages", "Settings"];
+  const tabs = ["Overview", "Appointments", "Health Records", "Messages", "Network", "My Card", "Settings"];
 
   return (
     <aside
@@ -42,7 +44,7 @@ function DashboardSidebar({
           <div className="flex items-center gap-2 text-blue-600">
             <Activity size={28} />
             <span className="text-xl font-bold tracking-tight text-slate-800">
-              HealthConnect
+              Pulse
             </span>
           </div>
         </div>
@@ -66,6 +68,8 @@ function DashboardSidebar({
             {item === "Appointments" && <Calendar size={20} />}
             {item === "Health Records" && <Heart size={20} />}
             {item === "Messages" && <MessageSquare size={20} />}
+            {item === "Network" && <Globe size={20} />}
+            {item === "My Card" && <CreditCard size={20} />}
             {item === "Settings" && <User size={20} />}
             {item}
           </button>
@@ -214,13 +218,19 @@ function PortalLayoutInner({
   const isMessagesRoute = pathname.startsWith("/portal/messages");
   const isDocumentsRoute = pathname.startsWith("/portal/documents");
   const isAppointmentsRoute = pathname.startsWith("/portal/appointments");
+  const isNetworkRoute = pathname.startsWith("/portal/network");
+  const isMyCardRoute = pathname.startsWith("/portal/my-card");
   const dashboardTab = isMessagesRoute
     ? "Messages"
     : isDocumentsRoute
       ? "Health Records"
       : isAppointmentsRoute
         ? "Appointments"
-        : (searchParams.get("tab") ?? "Overview");
+        : isNetworkRoute
+          ? "Network"
+          : isMyCardRoute
+            ? "My Card"
+            : (searchParams.get("tab") ?? "Overview");
   const [searchText, setSearchText] = useState("");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
@@ -237,6 +247,14 @@ function PortalLayoutInner({
     }
     if (tab === "Appointments") {
       router.push("/portal/appointments");
+      return;
+    }
+    if (tab === "Network") {
+      router.push("/portal/network");
+      return;
+    }
+    if (tab === "My Card") {
+      router.push("/portal/my-card");
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
@@ -321,7 +339,7 @@ function PortalLayoutInner({
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
             <div className="flex items-center gap-2 text-blue-600">
               <Activity size={24} />
-              <span className="text-lg font-semibold text-slate-800">HealthConnect</span>
+              <span className="text-lg font-semibold text-slate-800">Pulse</span>
             </div>
             <button
               type="button"

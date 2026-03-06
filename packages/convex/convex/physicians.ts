@@ -62,6 +62,16 @@ export const update = mutation({
     lastName: v.optional(v.string()),
     specialty: v.optional(v.string()),
     organizationId: v.optional(v.id("organizations")),
+    cardBio: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    yearsOfExperience: v.optional(v.number()),
+    education: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    profilePhotoStorageId: v.optional(v.id("_storage")),
+    bannerPhotoStorageId: v.optional(v.id("_storage")),
+    city: v.optional(v.string()),
+    state: v.optional(v.string()),
+    country: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { physicianId, ...updates } = args;

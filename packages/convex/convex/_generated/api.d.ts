@@ -18,6 +18,7 @@ import type * as chats from "../chats.js";
 import type * as connectionRequests from "../connectionRequests.js";
 import type * as documents from "../documents.js";
 import type * as escalations from "../escalations.js";
+import type * as network from "../network.js";
 import type * as organizations from "../organizations.js";
 import type * as patients from "../patients.js";
 import type * as physicians from "../physicians.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   connectionRequests: typeof connectionRequests;
   documents: typeof documents;
   escalations: typeof escalations;
+  network: typeof network;
   organizations: typeof organizations;
   patients: typeof patients;
   physicians: typeof physicians;

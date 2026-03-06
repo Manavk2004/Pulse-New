@@ -71,6 +71,7 @@ export const send = mutation({
       physicianId: args.physicianUserId,
       patientId: args.patientId,
       status: "pending",
+      initiatedBy: "physician",
       createdAt: Date.now(),
     });
   },
@@ -86,21 +87,18 @@ export const getByPatientUserId = query({
       .withIndex("by_userId", (q) => q.eq("userId", args.patientUserId))
       .unique();
 
-    console.log("getByPatientUserId - patient record:", patient?._id, "for userId:", args.patientUserId);
     if (!patient) return [];
 
     const requests = await ctx.db
       .query("connectionRequests")
-      .withIndex("by_patientId", (q) => q.eq("patientId", patient._id))
+      .withIndex("by_patientId_status", (q) =>
+        q.eq("patientId", patient._id).eq("status", "pending")
+      )
       .collect();
-
-    console.log("getByPatientUserId - connection requests found:", requests.length, requests.map(r => ({ status: r.status, patientId: r.patientId })));
 
     // Enrich with physician info
     return await Promise.all(
-      requests
-        .filter((r) => r.status === "pending")
-        .map(async (r) => {
+      requests.map(async (r) => {
           const physician = await ctx.db
             .query("physicians")
             .withIndex("by_userId", (q) => q.eq("userId", r.physicianId))
@@ -154,6 +152,198 @@ export const respond = mutation({
         consentTimestamp: Date.now(),
       });
     }
+  },
+});
+
+// Send a connection request from patient to physician
+export const sendFromPatient = mutation({
+  args: {
+    patientUserId: v.id("users"),
+    physicianUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Find the patient record
+    const patient = await ctx.db
+      .query("patients")
+      .withIndex("by_userId", (q) => q.eq("userId", args.patientUserId))
+      .unique();
+
+    if (!patient) {
+      throw new Error("Patient record not found");
+    }
+
+    // Verify the target is actually a physician
+    const physician = await ctx.db.get(args.physicianUserId);
+    if (!physician || physician.role !== "physician") {
+      throw new Error("Target user is not a physician");
+    }
+
+    // Check no existing pending/accepted request between these two
+    const existing = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_patientId", (q) => q.eq("patientId", patient._id))
+      .collect();
+
+    const duplicate = existing.find(
+      (r) =>
+        r.physicianId === args.physicianUserId &&
+        (r.status === "pending" || r.status === "accepted")
+    );
+
+    if (duplicate) {
+      return duplicate._id;
+    }
+
+    return await ctx.db.insert("connectionRequests", {
+      physicianId: args.physicianUserId,
+      patientId: patient._id,
+      status: "pending",
+      initiatedBy: "patient",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// Physician responds to a patient-initiated connection request
+export const respondByPhysician = mutation({
+  args: {
+    requestId: v.id("connectionRequests"),
+    physicianUserId: v.id("users"),
+    accept: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId);
+    if (!request || request.status !== "pending") {
+      throw new Error("Invalid or already resolved request.");
+    }
+
+    if (request.initiatedBy !== "patient") {
+      throw new Error("Request must be initiated by patient");
+    }
+
+    if (request.physicianId !== args.physicianUserId) {
+      throw new Error("Not authorized to respond to this request");
+    }
+
+    const newStatus = args.accept ? "accepted" : "rejected";
+
+    await ctx.db.patch(args.requestId, {
+      status: newStatus,
+      respondedAt: Date.now(),
+    });
+
+    if (args.accept) {
+      await ctx.db.patch(request.patientId, {
+        assignedPhysicianId: request.physicianId,
+        connected: true,
+        showPatient: true,
+        consentStatus: "granted" as const,
+        consentTimestamp: Date.now(),
+      });
+    }
+  },
+});
+
+// Get pending requests sent TO the physician (patient-initiated)
+export const getPendingForPhysician = query({
+  args: { physicianUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const requests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_physicianId_status", (q) =>
+        q.eq("physicianId", args.physicianUserId).eq("status", "pending")
+      )
+      .collect();
+
+    // Only return patient-initiated ones
+    const patientInitiated = requests.filter(
+      (r) => r.initiatedBy === "patient"
+    );
+
+    return Promise.all(
+      patientInitiated.map(async (r) => {
+        const patient = await ctx.db.get(r.patientId);
+        return {
+          _id: r._id,
+          patientId: r.patientId,
+          patientName: patient
+            ? `${patient.firstName} ${patient.lastName}`
+            : "Unknown Patient",
+          city: patient?.city,
+          state: patient?.state,
+          createdAt: r.createdAt,
+        };
+      })
+    );
+  },
+});
+
+// Get all connection requests involving a physician (both directions)
+export const getAllForPhysician = query({
+  args: { physicianUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const requests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_physicianId", (q) =>
+        q.eq("physicianId", args.physicianUserId)
+      )
+      .collect();
+
+    return Promise.all(
+      requests.map(async (r) => {
+        const patient = await ctx.db.get(r.patientId);
+        return {
+          _id: r._id,
+          patientId: r.patientId,
+          patientName: patient
+            ? `${patient.firstName} ${patient.lastName}`
+            : "Unknown Patient",
+          status: r.status,
+          initiatedBy: r.initiatedBy ?? "physician",
+          createdAt: r.createdAt,
+          respondedAt: r.respondedAt,
+        };
+      })
+    );
+  },
+});
+
+// Get all connection requests involving a patient (both directions)
+export const getAllForPatient = query({
+  args: { patientUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const patient = await ctx.db
+      .query("patients")
+      .withIndex("by_userId", (q) => q.eq("userId", args.patientUserId))
+      .unique();
+
+    if (!patient) return [];
+
+    const requests = await ctx.db
+      .query("connectionRequests")
+      .withIndex("by_patientId", (q) => q.eq("patientId", patient._id))
+      .collect();
+
+    return Promise.all(
+      requests.map(async (r) => {
+        const physician = await ctx.db
+          .query("physicians")
+          .withIndex("by_userId", (q) => q.eq("userId", r.physicianId))
+          .unique();
+        return {
+          _id: r._id,
+          physicianId: r.physicianId,
+          physicianName: physician
+            ? `Dr. ${physician.firstName} ${physician.lastName}`
+            : "Unknown Physician",
+          specialty: physician?.specialty ?? "",
+          status: r.status,
+          initiatedBy: r.initiatedBy ?? "physician",
+          createdAt: r.createdAt,
+          respondedAt: r.respondedAt,
+        };
+      })
+    );
   },
 });
 

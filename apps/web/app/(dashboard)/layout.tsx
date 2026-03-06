@@ -16,6 +16,8 @@ import {
   Users,
   Calendar,
   MessageSquare,
+  Globe,
+  CreditCard,
   AlertTriangle,
   Settings,
   Search,
@@ -28,6 +30,8 @@ const tabDefinitions = [
   { label: "My Patients", icon: Users, path: "/patients" },
   { label: "Appointments", icon: Calendar, path: "/appointments" },
   { label: "Messages", icon: MessageSquare, path: "/messages" },
+  { label: "Network", icon: Globe, path: "/network" },
+  { label: "My Card", icon: CreditCard, path: "/my-card" },
   { label: "Escalations", icon: AlertTriangle, path: "/escalations" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];

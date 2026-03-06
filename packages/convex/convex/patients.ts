@@ -70,6 +70,13 @@ export const update = mutation({
         phoneNumber: v.string(),
       })
     ),
+    cardBio: v.optional(v.string()),
+    cardVisibleFields: v.optional(v.array(v.string())),
+    profilePhotoStorageId: v.optional(v.id("_storage")),
+    bannerPhotoStorageId: v.optional(v.id("_storage")),
+    city: v.optional(v.string()),
+    state: v.optional(v.string()),
+    country: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { patientId, ...updates } = args;

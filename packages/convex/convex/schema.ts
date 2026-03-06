@@ -48,6 +48,13 @@ export default defineSchema({
     procedures: v.optional(v.array(v.object({ name: v.string(), date: v.optional(v.string()) }))),
     insurance: v.optional(v.object({ planName: v.optional(v.string()), provider: v.optional(v.string()), memberId: v.optional(v.string()) })),
     profileFieldsUpdatedAt: v.optional(v.number()),
+    city: v.optional(v.string()),
+    state: v.optional(v.string()),
+    country: v.optional(v.string()),
+    profilePhotoStorageId: v.optional(v.id("_storage")),
+    bannerPhotoStorageId: v.optional(v.id("_storage")),
+    cardBio: v.optional(v.string()),
+    cardVisibleFields: v.optional(v.array(v.string())),
   })
     .index("by_userId", ["userId"])
     .index("by_assignedPhysician", ["assignedPhysicianId"])
@@ -67,6 +74,16 @@ export default defineSchema({
     licenseNumber: v.string(),
     email: v.optional(v.string()),
     organizationId: v.optional(v.id("organizations")),
+    city: v.optional(v.string()),
+    state: v.optional(v.string()),
+    country: v.optional(v.string()),
+    profilePhotoStorageId: v.optional(v.id("_storage")),
+    bannerPhotoStorageId: v.optional(v.id("_storage")),
+    cardBio: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    yearsOfExperience: v.optional(v.number()),
+    education: v.optional(v.string()),
+    phone: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_organization", ["organizationId"]),
@@ -216,13 +233,15 @@ export default defineSchema({
       v.literal("accepted"),
       v.literal("rejected")
     ),
+    initiatedBy: v.optional(v.union(v.literal("physician"), v.literal("patient"))),
     createdAt: v.number(),
     respondedAt: v.optional(v.number()),
   })
     .index("by_physicianId", ["physicianId"])
     .index("by_patientId", ["patientId"])
     .index("by_status", ["status"])
-    .index("by_physicianId_status", ["physicianId", "status"]),
+    .index("by_physicianId_status", ["physicianId", "status"])
+    .index("by_patientId_status", ["patientId", "status"]),
 
   // Physician availability slots
   availabilitySlots: defineTable({

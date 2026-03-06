@@ -26,6 +26,14 @@ export const countDocumentsByPhysician = query({
   },
 });
 
+// Get a public URL for a storage ID
+export const getStorageUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
 // Generate upload URL
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
