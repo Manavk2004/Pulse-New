@@ -30,6 +30,10 @@ import {
   Image,
   StickyNote,
   Clock,
+  Inbox,
+  MessageSquare,
+  Bot,
+  ChevronRight,
 } from "lucide-react";
 
 // DEV: hardcoded physician Clerk ID — bypasses Clerk auth (development only)
@@ -105,6 +109,14 @@ export default function PatientDetailPage() {
     patientId ? { patientId: patientId as any } : "skip"
   );
 
+  const exportedChats = useQuery(
+    api.exportedChats.getByPatientAndPhysician,
+    patientId && convexUser
+      ? { patientId: patientId as any, physicianUserId: convexUser._id }
+      : "skip"
+  );
+  const markChatAsRead = useMutation(api.exportedChats.markAsRead);
+
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createByPhysician = useMutation(api.documents.createByPhysician);
   const hidePatient = useMutation(api.patients.hidePatient);
@@ -118,6 +130,9 @@ export default function PatientDetailPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Exported chat viewer state
+  const [viewingExportedChat, setViewingExportedChat] = useState<any>(null);
 
   // Delete state
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -712,8 +727,159 @@ export default function PatientDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Patient Inbox - Exported AI Chats */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                  Inbox
+                </h2>
+                {exportedChats && exportedChats.filter((c: any) => !c.read).length > 0 && (
+                  <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {exportedChats.filter((c: any) => !c.read).length}
+                  </span>
+                )}
+              </div>
+              <Inbox size={16} className="text-slate-400" />
+            </div>
+
+            {!exportedChats || exportedChats.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                  <MessageSquare size={24} className="text-slate-400" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">
+                  No exported chats
+                </p>
+                <p className="text-xs text-slate-500">
+                  AI conversation exports from the patient will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {exportedChats.map((chat: any) => (
+                  <button
+                    key={chat._id}
+                    onClick={async () => {
+                      setViewingExportedChat(chat);
+                      if (!chat.read) {
+                        try {
+                          await markChatAsRead({ chatId: chat._id });
+                        } catch {
+                          // Read status is non-critical; don't block the UI
+                        }
+                      }
+                    }}
+                    className={`w-full text-left rounded-xl border p-3 transition-all hover:shadow-sm group ${
+                      chat.read
+                        ? "border-slate-100 hover:border-slate-200 bg-white"
+                        : "border-blue-200 bg-blue-50/50 hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        chat.read ? "bg-slate-100" : "bg-blue-100"
+                      }`}>
+                        <MessageSquare size={16} className={chat.read ? "text-slate-500" : "text-blue-600"} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-slate-800 truncate">{chat.title}</h4>
+                          {!chat.read && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">{chat.summary}</p>
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                          <Clock size={10} />
+                          {new Date(chat.exportedAt).toLocaleDateString()}
+                          <span>&bull;</span>
+                          {chat.messageCount} messages
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 shrink-0 mt-1" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Exported Chat Viewer Dialog */}
+      {viewingExportedChat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setViewingExportedChat(null)}
+          />
+          <div className="relative w-full max-w-2xl max-h-[80vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+              <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-blue-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800 truncate">{viewingExportedChat.title}</h3>
+                <p className="text-xs text-slate-500">
+                  Exported on {new Date(viewingExportedChat.exportedAt).toLocaleDateString()} at {new Date(viewingExportedChat.exportedAt).toLocaleTimeString()} &bull; {viewingExportedChat.messageCount} messages
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingExportedChat(null)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {viewingExportedChat.messages.map((msg: any, idx: number) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                      msg.role === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-50 border border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Bot size={14} className="text-blue-500" />
+                        <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider">
+                          Pulse AI
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {msg.content}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 px-6 py-3 bg-slate-50 flex items-center justify-between">
+              <p className="text-[10px] text-slate-400">
+                AI-generated content exported by patient for physician review.
+              </p>
+              <button
+                onClick={() => setViewingExportedChat(null)}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Upload Dialog */}
       {uploadDialogOpen && (

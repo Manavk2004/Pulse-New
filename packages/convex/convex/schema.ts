@@ -315,6 +315,26 @@ export default defineSchema({
     .index("by_patientId_extractedAt", ["patientId", "extractedAt"])
     .index("by_documentId", ["documentId"]),
 
+  // Exported AI chats from patient to physician
+  exportedChats: defineTable({
+    patientId: v.id("patients"),
+    physicianUserId: v.id("users"),
+    title: v.string(),
+    summary: v.string(),
+    messages: v.array(
+      v.object({
+        role: v.union(v.literal("user"), v.literal("assistant")),
+        content: v.string(),
+      })
+    ),
+    messageCount: v.number(),
+    exportedAt: v.number(),
+    read: v.boolean(),
+  })
+    .index("by_patientId", ["patientId"])
+    .index("by_physicianUserId", ["physicianUserId"])
+    .index("by_patientId_physicianUserId", ["patientId", "physicianUserId"]),
+
   // Knowledge base for RAG
   knowledgeBase: defineTable({
     organizationId: v.optional(v.id("organizations")),

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "@repo/convex";
 import { Id } from "@repo/convex/convex/_generated/dataModel";
 import {
@@ -16,7 +16,7 @@ import {
   Image,
   StickyNote,
   Loader2,
-  Sparkles,
+  ScanSearch,
   Clock,
   ChevronRight,
   Search,
@@ -25,13 +25,31 @@ import {
   X,
   MessageSquare,
   Lightbulb,
+  Download,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
+  Eye,
+  Share2,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import jsPDF from "jspdf";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+interface SavedChat {
+  id: string;
+  title: string;
+  summary: string;
+  messages: ChatMessage[];
+  savedAt: number;
+  messageCount: number;
 }
 
 interface DocumentItem {
@@ -108,6 +126,11 @@ export default function AIRoomPage() {
   ) as DocumentItem[] | undefined;
 
   const chatWithDocuments = useAction(api.documentAnalysis.chatWithDocuments);
+  const connectedPhysicians = useQuery(
+    api.exportedChats.getConnectedPhysicians,
+    patientProfile ? { patientId: patientProfile._id } : "skip"
+  );
+  const exportChat = useMutation(api.exportedChats.exportChat);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -116,9 +139,131 @@ export default function AIRoomPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedDoc, setExpandedDoc] = useState<Id<"documents"> | null>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [savedChats, setSavedChats] = useState<SavedChat[]>([]);
+  const [viewingChat, setViewingChat] = useState<SavedChat | null>(null);
+  const [exportPickerOpen, setExportPickerOpen] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved chats from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("pulse-saved-chats");
+    if (stored) {
+      try { setSavedChats(JSON.parse(stored)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  const handleSaveChat = () => {
+    if (chatMessages.length === 0) return;
+    const firstUserMsg = chatMessages.find((m) => m.role === "user")?.content ?? "Chat";
+    const title = firstUserMsg.length > 60 ? firstUserMsg.slice(0, 60) + "..." : firstUserMsg;
+    const firstAiMsg = chatMessages.find((m) => m.role === "assistant")?.content ?? "";
+    const summary = firstAiMsg.length > 100 ? firstAiMsg.slice(0, 100) + "..." : firstAiMsg;
+
+    const newChat: SavedChat = {
+      id: Date.now().toString(),
+      title,
+      summary,
+      messages: [...chatMessages],
+      savedAt: Date.now(),
+      messageCount: chatMessages.length,
+    };
+    const updated = [newChat, ...savedChats];
+    setSavedChats(updated);
+    localStorage.setItem("pulse-saved-chats", JSON.stringify(updated));
+  };
+
+  const handleDeleteSavedChat = (id: string) => {
+    const updated = savedChats.filter((c) => c.id !== id);
+    setSavedChats(updated);
+    localStorage.setItem("pulse-saved-chats", JSON.stringify(updated));
+  };
+
+  const handleDownloadSavedChatPDF = (chat: SavedChat) => {
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const checkPageBreak = (needed: number) => {
+      if (y + needed > pdf.internal.pageSize.getHeight() - 20) {
+        pdf.addPage();
+        y = 20;
+      }
+    };
+
+    pdf.setFontSize(18);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(30, 41, 59);
+    pdf.text("Pulse Health AI - Saved Chat", margin, y);
+    y += 8;
+
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(`Saved on ${new Date(chat.savedAt).toLocaleDateString()} at ${new Date(chat.savedAt).toLocaleTimeString()}`, margin, y);
+    y += 6;
+
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    for (const msg of chat.messages) {
+      const isUser = msg.role === "user";
+      const label = isUser ? "You" : "Pulse AI";
+      const cleanContent = msg.content.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+      checkPageBreak(14);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "bold");
+      if (isUser) { pdf.setTextColor(37, 99, 235); } else { pdf.setTextColor(100, 116, 139); }
+      pdf.text(label, margin, y);
+      y += 5;
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(51, 65, 85);
+      const lines = pdf.splitTextToSize(cleanContent, maxWidth);
+      for (const line of lines) { checkPageBreak(5); pdf.text(line, margin, y); y += 5; }
+      y += 4;
+    }
+
+    checkPageBreak(20);
+    y += 4;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 6;
+    pdf.setFontSize(8);
+    pdf.setTextColor(148, 163, 184);
+    pdf.setFont("helvetica", "italic");
+    const disclaimer = "This document is AI-generated and for informational purposes only. It does not constitute medical advice.";
+    const disclaimerLines = pdf.splitTextToSize(disclaimer, maxWidth);
+    for (const line of disclaimerLines) { pdf.text(line, margin, y); y += 4; }
+
+    pdf.save(`pulse-saved-chat-${new Date(chat.savedAt).toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const handleExportToPhysician = async (physicianUserId: Id<"users">, physicianName: string) => {
+    if (!viewingChat || !patientProfile) return;
+    try {
+      await exportChat({
+        patientId: patientProfile._id,
+        physicianUserId,
+        title: viewingChat.title,
+        summary: viewingChat.summary,
+        messages: viewingChat.messages,
+        messageCount: viewingChat.messageCount,
+      });
+      setExportPickerOpen(false);
+      setExportSuccess(physicianName);
+      setTimeout(() => setExportSuccess(null), 3000);
+    } catch {
+      setExportError("Failed to export chat. Please try again.");
+      setTimeout(() => setExportError(null), 3000);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -169,6 +314,92 @@ export default function AIRoomPage() {
   const handleQuickPrompt = (prompt: string) => {
     setInputValue(prompt);
     inputRef.current?.focus();
+  };
+
+  const handleDownloadPDF = () => {
+    if (chatMessages.length === 0) return;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const checkPageBreak = (needed: number) => {
+      if (y + needed > pdf.internal.pageSize.getHeight() - 20) {
+        pdf.addPage();
+        y = 20;
+      }
+    };
+
+    // Title
+    pdf.setFontSize(18);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(30, 41, 59);
+    pdf.text("Pulse Health AI - Document Analysis", margin, y);
+    y += 8;
+
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, y);
+    y += 4;
+
+    if (patientProfile) {
+      pdf.text(`Patient: ${patientProfile.firstName} ${patientProfile.lastName}`, margin, y);
+      y += 4;
+    }
+
+    // Divider
+    y += 2;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    // Messages
+    for (const msg of chatMessages) {
+      const isUser = msg.role === "user";
+      const label = isUser ? "You" : "Pulse AI";
+      // Strip markdown bold markers for cleaner PDF
+      const cleanContent = msg.content.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+
+      checkPageBreak(14);
+
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "bold");
+      if (isUser) { pdf.setTextColor(37, 99, 235); } else { pdf.setTextColor(100, 116, 139); }
+      pdf.text(label, margin, y);
+      y += 5;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(51, 65, 85);
+      const lines = pdf.splitTextToSize(cleanContent, maxWidth);
+      for (const line of lines) {
+        checkPageBreak(5);
+        pdf.text(line, margin, y);
+        y += 5;
+      }
+      y += 4;
+    }
+
+    // Disclaimer
+    checkPageBreak(20);
+    y += 4;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 6;
+    pdf.setFontSize(8);
+    pdf.setTextColor(148, 163, 184);
+    pdf.setFont("helvetica", "italic");
+    const disclaimer = "This document is AI-generated and for informational purposes only. It does not constitute medical advice. Always consult your physician for medical decisions.";
+    const disclaimerLines = pdf.splitTextToSize(disclaimer, maxWidth);
+    for (const line of disclaimerLines) {
+      pdf.text(line, margin, y);
+      y += 4;
+    }
+
+    pdf.save(`pulse-ai-analysis-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const analyzedDocs = (documents ?? []).filter(
@@ -350,7 +581,7 @@ export default function AIRoomPage() {
                             <Clock className="h-3 w-3" />
                             {new Date(doc.uploadedAt).toLocaleDateString()}
                             <span className="flex items-center gap-1 text-emerald-600">
-                              <Sparkles className="h-3 w-3" />
+                              <ScanSearch className="h-3 w-3" />
                               AI Analyzed
                             </span>
                           </div>
@@ -374,14 +605,14 @@ export default function AIRoomPage() {
                           <div className="px-4 pb-4 space-y-3">
                             <div className="border-t border-slate-100 pt-3">
                               <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-blue-500" />
+                                <ScanSearch className="h-4 w-4 text-blue-500" />
                                 <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
                                   AI Analysis
                                 </span>
                               </div>
-                              <p className="text-sm text-slate-600 leading-relaxed">
-                                {doc.aiSummary}
-                              </p>
+                              <div className="text-sm text-slate-600 leading-relaxed [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_strong]:text-slate-800">
+                                <ReactMarkdown>{doc.aiSummary ?? ""}</ReactMarkdown>
+                              </div>
                             </div>
                             <div className="flex gap-2">
                               <button
@@ -424,6 +655,65 @@ export default function AIRoomPage() {
               })
             )}
           </div>
+
+          {/* Past Saved Chats */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-slate-800">Past Saved Chats</h2>
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                {savedChats.length} saved
+              </span>
+            </div>
+            <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+              {savedChats.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
+                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <BookmarkCheck className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-1">No saved chats yet</h3>
+                  <p className="text-xs text-slate-500">
+                    Save useful AI conversations for future reference
+                  </p>
+                </div>
+              ) : (
+                savedChats.map((chat) => (
+                  <motion.div
+                    key={chat.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm p-3 cursor-pointer transition-all group"
+                    onClick={() => setViewingChat(chat)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                        <MessageSquare className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-800 truncate">{chat.title}</h4>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">{chat.summary}</p>
+                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                          <Clock className="h-3 w-3" />
+                          {new Date(chat.savedAt).toLocaleDateString()}
+                          <span className="text-slate-300">|</span>
+                          {chat.messageCount} messages
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSavedChat(chat.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all"
+                        title="Delete saved chat"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Right Column - Chat Interface */}
@@ -451,6 +741,26 @@ export default function AIRoomPage() {
                 <X size={12} />
                 Clear Focus
               </button>
+            )}
+            {chatMessages.length > 0 && (
+              <>
+                <button
+                  onClick={handleSaveChat}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-all"
+                  title="Save this chat"
+                >
+                  <Bookmark size={12} />
+                  Save Chat
+                </button>
+                <button
+                  onClick={handleDownloadPDF}
+                  className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-all"
+                  title="Download chat as PDF"
+                >
+                  <Download size={12} />
+                  Save PDF
+                </button>
+              </>
             )}
           </div>
 
@@ -646,6 +956,163 @@ export default function AIRoomPage() {
           </div>
         </div>
       </div>
+
+      {/* Saved Chat Viewer Dialog */}
+      <AnimatePresence>
+        {viewingChat && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setViewingChat(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Dialog Header */}
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <BookmarkCheck className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-slate-800 truncate">{viewingChat.title}</h3>
+                  <p className="text-xs text-slate-500">
+                    Saved on {new Date(viewingChat.savedAt).toLocaleDateString()} at {new Date(viewingChat.savedAt).toLocaleTimeString()} &bull; {viewingChat.messageCount} messages
+                  </p>
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setExportPickerOpen(!exportPickerOpen)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-all"
+                  >
+                    <Share2 size={12} />
+                    Export
+                    <ChevronDown size={10} className={`transition-transform ${exportPickerOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  <AnimatePresence>
+                    {exportPickerOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-10 w-64 bg-white rounded-xl border border-slate-200 shadow-xl p-2 z-50"
+                      >
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
+                          Send to Physician
+                        </p>
+                        {!connectedPhysicians || connectedPhysicians.length === 0 ? (
+                          <p className="text-xs text-slate-500 px-2 py-3 text-center">
+                            No connected physicians
+                          </p>
+                        ) : (
+                          connectedPhysicians.map((doc) => (
+                            <button
+                              key={doc.userId}
+                              onClick={() => handleExportToPhysician(doc.userId as Id<"users">, doc.name)}
+                              className="w-full text-left rounded-lg px-3 py-2 hover:bg-blue-50 transition-all flex items-center gap-2"
+                            >
+                              <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0">
+                                {doc.name.replace("Dr. ", "").split(" ").map(n => n[0]).join("")}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-700 truncate">{doc.name}</p>
+                                {doc.specialty && (
+                                  <p className="text-[10px] text-slate-400">{doc.specialty}</p>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                {exportSuccess && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                    <Check size={12} />
+                    Sent to {exportSuccess}
+                  </div>
+                )}
+                {exportError && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-3 py-1.5 rounded-lg">
+                    <X size={12} />
+                    {exportError}
+                  </div>
+                )}
+                <button
+                  onClick={() => handleDownloadSavedChatPDF(viewingChat)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-all"
+                >
+                  <Download size={12} />
+                  PDF
+                </button>
+                <button
+                  onClick={() => { setViewingChat(null); setExportPickerOpen(false); setExportSuccess(null); }}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Dialog Messages */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {viewingChat.messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                        msg.role === "user"
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-50 border border-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {msg.role === "assistant" && (
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Bot size={14} className="text-blue-500" />
+                          <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider">
+                            Pulse AI
+                          </span>
+                        </div>
+                      )}
+                      {msg.role === "assistant" ? (
+                        <div className="text-sm leading-relaxed [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_strong]:text-slate-800">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Dialog Footer */}
+              <div className="border-t border-slate-100 px-6 py-3 bg-slate-50 flex items-center justify-between">
+                <p className="text-[10px] text-slate-400">
+                  AI-generated content for informational purposes only.
+                </p>
+                <button
+                  onClick={() => setViewingChat(null)}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
